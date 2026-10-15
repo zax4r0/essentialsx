@@ -179,6 +179,39 @@ object NetworkModeController {
         setModeForSim(context, targetSim, next)
     }
 
+    suspend fun setDefaultDataSubId(context: Context, subId: Int) {
+        withContext(Dispatchers.IO) {
+            try {
+                val binder = rikka.shizuku.SystemServiceHelper.getSystemService("isub")
+                if (binder != null) {
+                    val wrappedBinder = rikka.shizuku.ShizukuBinderWrapper(binder)
+                    val stubClass = Class.forName("com.android.internal.telephony.ISub\$Stub")
+                    val asInterfaceMethod = stubClass.getMethod("asInterface", android.os.IBinder::class.java)
+                    val iSubInstance = asInterfaceMethod.invoke(null, wrappedBinder)
+                    val setDefaultDataSubIdMethod = iSubInstance.javaClass.getMethod(
+                        "setDefaultDataSubId",
+                        Int::class.javaPrimitiveType
+                    )
+                    setDefaultDataSubIdMethod.invoke(iSubInstance, subId)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Reflection setDefaultDataSubId failed, falling back to shell", e)
+            }
+            ShizukuHelper.runCommand("settings put global multi_sim_data_call $subId")
+            ShizukuHelper.runCommand("cmd phone set-default-data-sub-id $subId")
+            ShizukuHelper.runCommand("svc data enable")
+        }
+        refresh(context)
+    }
+
+    suspend fun toggleDefaultDataSim(context: Context) {
+        val activeSims = _sims.value.filter { it.isActive }
+        if (activeSims.size < 2) return
+        val currentDefault = activeSims.firstOrNull { it.isDefaultData } ?: activeSims.first()
+        val nextSim = activeSims.firstOrNull { it.subId != currentDefault.subId } ?: return
+        setDefaultDataSubId(context, nextSim.subId)
+    }
+
     fun getDefaultTargetSim(): SimInfo? {
         val activeSims = _sims.value.filter { it.isActive }
         return activeSims.firstOrNull { it.isDefaultData } ?: activeSims.firstOrNull()

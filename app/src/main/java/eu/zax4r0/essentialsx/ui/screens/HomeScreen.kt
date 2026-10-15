@@ -30,6 +30,7 @@ import eu.zax4r0.essentialsx.features.animator.AnimatorController
 import eu.zax4r0.essentialsx.features.animator.AnimatorTileService
 import eu.zax4r0.essentialsx.features.caffeine.CaffeineController
 import eu.zax4r0.essentialsx.features.caffeine.CaffeineTileService
+import eu.zax4r0.essentialsx.features.network.DataSimTileService
 import eu.zax4r0.essentialsx.features.network.NetworkModeController
 import eu.zax4r0.essentialsx.features.network.NetworkModeTileService
 import eu.zax4r0.essentialsx.ui.AboutDialog
@@ -38,8 +39,12 @@ import eu.zax4r0.essentialsx.ui.PorterScaffold
 import eu.zax4r0.essentialsx.ui.SettingsCategory
 import eu.zax4r0.essentialsx.ui.SettingsItem
 import eu.zax4r0.essentialsx.ui.SettingsSwitch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import eu.zax4r0.essentialsx.utils.QuickSettingsTileManager
 import eu.zax4r0.essentialsx.utils.SettingsHelper
 import eu.zax4r0.essentialsx.utils.ShizukuHelper
+import eu.zax4r0.essentialsx.utils.UpdateManager
 import kotlinx.coroutines.launch
 
 @Composable
@@ -69,7 +74,14 @@ fun HomeScreen() {
     val animatorScale by AnimatorController.animatorScale.collectAsState()
     val isAnimatorLinked by AnimatorController.isLinked.collectAsState()
 
+    var showCaffeineVariantDialog by remember { mutableStateOf(false) }
+    var showNetworkVariantDialog by remember { mutableStateOf(false) }
+    var showAnimatorVariantDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var availableUpdate by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
+    var updateDownloadProgress by remember { mutableStateOf<Int?>(null) }
 
     fun openUrl(url: String) {
         runCatching {
@@ -82,30 +94,11 @@ fun HomeScreen() {
         }
     }
 
-    fun requestAddTile(serviceClass: Class<*>, title: String, @DrawableRes iconRes: Int) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val sbm = context.getSystemService(StatusBarManager::class.java)
-            val componentName = ComponentName(context, serviceClass)
-            sbm?.requestAddTileService(
-                componentName,
-                title,
-                Icon.createWithResource(context, iconRes),
-                context.mainExecutor
-            ) { result ->
-                when (result) {
-                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> {
-                        Toast.makeText(context, "$title tile is already in Quick Settings", Toast.LENGTH_SHORT).show()
-                    }
-                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> {
-                        Toast.makeText(context, "$title tile added to Quick Settings!", Toast.LENGTH_SHORT).show()
-                    }
-                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> {
-                        // User cancelled
-                    }
-                }
+    fun addTile(serviceClass: Class<*>, title: String, @DrawableRes iconRes: Int) {
+        scope.launch {
+            QuickSettingsTileManager.addTileToLast(context, serviceClass, title, iconRes) { _, msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             }
-        } else {
-            Toast.makeText(context, "Open notification panel to add $title tile", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -133,6 +126,63 @@ fun HomeScreen() {
         )
     }
 
+    if (showCaffeineVariantDialog) {
+        val choices = listOf(
+            "Caffeine Toggle (Infinite keep-awake mode)",
+            "Caffeine Cycle (Cycle 1m, 5m, 10m, 30m, 1h presets)"
+        )
+        ChoiceDialog(
+            title = "Choose Caffeine Tile Variant",
+            choices = choices,
+            selected = 0,
+            onDismiss = { showCaffeineVariantDialog = false },
+            onSelect = { idx ->
+                showCaffeineVariantDialog = false
+                addTile(CaffeineTileService::class.java, "Caffeine", R.drawable.ic_coffee)
+            }
+        )
+    }
+
+    if (showNetworkVariantDialog) {
+        val choices = listOf(
+            "Network Mode Drawer (5G/4G/Auto drawer selector)",
+            "Data SIM Switcher (1-tap switch default mobile data SIM)"
+        )
+        ChoiceDialog(
+            title = "Choose Network Tile Variant",
+            choices = choices,
+            selected = 0,
+            onDismiss = { showNetworkVariantDialog = false },
+            onSelect = { idx ->
+                showNetworkVariantDialog = false
+                val targetService = if (idx == 0) {
+                    NetworkModeTileService::class.java
+                } else {
+                    DataSimTileService::class.java
+                }
+                val label = if (idx == 0) "Network Mode" else "Data SIM"
+                addTile(targetService, label, R.drawable.ic_signal_cellular)
+            }
+        )
+    }
+
+    if (showAnimatorVariantDialog) {
+        val choices = listOf(
+            "Speed Boost (Toggle 0.5x / 1.0x animations)",
+            "Animations Off (Toggle 0.0x / 1.0x animations)"
+        )
+        ChoiceDialog(
+            title = "Choose Animator Tile Variant",
+            choices = choices,
+            selected = 0,
+            onDismiss = { showAnimatorVariantDialog = false },
+            onSelect = { idx ->
+                showAnimatorVariantDialog = false
+                addTile(AnimatorTileService::class.java, "Animator", R.drawable.ic_speed)
+            }
+        )
+    }
+
     if (showAboutDialog) {
         AboutDialog(
             onDismiss = { showAboutDialog = false },
@@ -143,14 +193,110 @@ fun HomeScreen() {
         )
     }
 
+    if (availableUpdate != null) {
+        val update = availableUpdate!!
+        AlertDialog(
+            onDismissRequest = {
+                if (updateDownloadProgress == null) availableUpdate = null
+            },
+            icon = {
+                Icon(
+                    Icons.TwoTone.SystemUpdate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    "Update Available: v${update.versionName}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (update.releaseTitle.isNotBlank()) {
+                        Text(
+                            update.releaseTitle,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (update.releaseNotes.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = update.releaseNotes,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+
+                    if (updateDownloadProgress != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            LinearProgressIndicator(
+                                progress = { updateDownloadProgress!!.toFloat() / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                "Downloading: ${updateDownloadProgress}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (update.downloadUrl != null) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                updateDownloadProgress = 0
+                                UpdateManager.downloadAndInstall(
+                                    context = context,
+                                    downloadUrl = update.downloadUrl,
+                                    onProgress = { updateDownloadProgress = it },
+                                    onError = { err ->
+                                        updateDownloadProgress = null
+                                        Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            }
+                        },
+                        enabled = updateDownloadProgress == null
+                    ) {
+                        Text(if (updateDownloadProgress != null) "Downloading..." else "Download & Install")
+                    }
+                } else {
+                    Button(onClick = { openUrl(update.htmlUrl) }) {
+                        Text("View on GitHub")
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { availableUpdate = null },
+                    enabled = updateDownloadProgress == null
+                ) {
+                    Text("Later")
+                }
+            }
+        )
+    }
+
     PorterScaffold(
         title = stringResource(R.string.app_name),
-        titleBadge = if (hasPorterPermission) "Porter Ready" else null,
-        actions = {
-            IconButton(onClick = { showAboutDialog = true }) {
-                Icon(Icons.TwoTone.Info, contentDescription = "About EssentialsX")
-            }
-        }
+        titleBadge = if (hasPorterPermission) "Porter Ready" else null
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -338,41 +484,33 @@ fun HomeScreen() {
                 SettingsItem(
                     title = "Caffeine Tile",
                     icon = Icons.TwoTone.LocalCafe,
-                    summary = "Tap to prompt adding Caffeine tile to Quick Settings",
+                    summary = "Choose variant (Toggle vs Cycle) • Appends to end of QS panel",
                     trailing = {
                         FilledTonalButton(
-                            onClick = {
-                                requestAddTile(CaffeineTileService::class.java, "Caffeine", R.drawable.ic_coffee)
-                            },
+                            onClick = { showCaffeineVariantDialog = true },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text("Add")
                         }
                     },
-                    onClick = {
-                        requestAddTile(CaffeineTileService::class.java, "Caffeine", R.drawable.ic_coffee)
-                    }
+                    onClick = { showCaffeineVariantDialog = true }
                 )
             }
 
             item {
                 SettingsItem(
-                    title = "Network Switch Tile",
+                    title = "Network & SIM Tile",
                     icon = Icons.TwoTone.CellTower,
-                    summary = "Tap to prompt adding Network Switch tile to Quick Settings",
+                    summary = "Choose variant (Network Drawer vs Data SIM) • Appends to end of QS panel",
                     trailing = {
                         FilledTonalButton(
-                            onClick = {
-                                requestAddTile(NetworkModeTileService::class.java, "Network Mode", R.drawable.ic_signal_cellular)
-                            },
+                            onClick = { showNetworkVariantDialog = true },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text("Add")
                         }
                     },
-                    onClick = {
-                        requestAddTile(NetworkModeTileService::class.java, "Network Mode", R.drawable.ic_signal_cellular)
-                    }
+                    onClick = { showNetworkVariantDialog = true }
                 )
             }
 
@@ -380,26 +518,67 @@ fun HomeScreen() {
                 SettingsItem(
                     title = "Animation Speed Tile",
                     icon = Icons.TwoTone.Speed,
-                    summary = "Tap to prompt adding Animation Speed tile to Quick Settings",
+                    summary = "Choose variant (Speed Boost vs Off) • Appends to end of QS panel",
                     trailing = {
                         FilledTonalButton(
-                            onClick = {
-                                requestAddTile(AnimatorTileService::class.java, "Animator", R.drawable.ic_speed)
-                            },
+                            onClick = { showAnimatorVariantDialog = true },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text("Add")
                         }
                     },
-                    onClick = {
-                        requestAddTile(AnimatorTileService::class.java, "Animator", R.drawable.ic_speed)
-                    }
+                    onClick = { showAnimatorVariantDialog = true }
                 )
             }
 
             // ================= ABOUT & DEVELOPER =================
             item {
                 SettingsCategory("About & Developer")
+            }
+
+            item {
+                SettingsItem(
+                    title = "Check for Updates",
+                    icon = Icons.TwoTone.SystemUpdate,
+                    summary = if (isCheckingUpdate) "Checking GitHub Releases..." else "OTA updates via GitHub • Current: v${UpdateManager.getCurrentVersion(context)}",
+                    trailing = {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch {
+                                        isCheckingUpdate = true
+                                        val info = UpdateManager.checkForUpdate(context)
+                                        isCheckingUpdate = false
+                                        if (info != null && info.isUpdateAvailable) {
+                                            availableUpdate = info
+                                        } else {
+                                            Toast.makeText(context, "You are using the latest version (v${UpdateManager.getCurrentVersion(context)})", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text("Check")
+                            }
+                        }
+                    },
+                    onClick = {
+                        if (!isCheckingUpdate) {
+                            scope.launch {
+                                isCheckingUpdate = true
+                                val info = UpdateManager.checkForUpdate(context)
+                                isCheckingUpdate = false
+                                if (info != null && info.isUpdateAvailable) {
+                                    availableUpdate = info
+                                } else {
+                                    Toast.makeText(context, "You are using the latest version (v${UpdateManager.getCurrentVersion(context)})", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                )
             }
 
             item {

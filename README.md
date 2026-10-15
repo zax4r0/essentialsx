@@ -1,11 +1,7 @@
 # EssentialsX ⚡
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/zax4r0/essentialsx/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="96" height="96" alt="EssentialsX Logo" />
-</p>
-
-<p align="center">
-  <strong>The essential power-user toolkit for Android, reimagined with Jetpack Compose & Material 3.</strong>
+  <strong>The essential power-user toolkit for Android, built with Jetpack Compose & Material 3.</strong>
 </p>
 
 <p align="center">
@@ -21,7 +17,7 @@
 
 ## 📖 Overview
 
-**EssentialsX** (`eu.zax4r0.essentialsx`) is a lightweight, high-performance system utility tailored for modern Android devices. Designed with the clean, elegant aesthetics of **Porter UI**, EssentialsX consolidates vital device controls—keep-awake wake locks, multi-SIM / eSIM cellular mode controls, and custom animation scaling—into a unified, reactive interface.
+**EssentialsX** (`eu.zax4r0.essentialsx`) is a lightweight, high-performance system utility tailored for modern Android devices. Designed with a clean, responsive Jetpack Compose Material 3 interface, EssentialsX consolidates vital device controls—keep-awake wake locks, multi-SIM / eSIM cellular mode controls, and custom animation scaling—into a unified, reactive interface.
 
 ---
 
@@ -31,7 +27,7 @@
 - **Zero elevated privileges needed**: Operates entirely in userland with Android's native WakeLock API.
 - **Configurable Timeouts**: Choose from 1m, 5m, 10m, 30m, 1h, or Infinite awake mode.
 - **Persistent Notification & Live Countdown**: Easily monitor remaining time or cancel directly from notifications.
-- **Quick Settings Tile**: Single-tap toggle or cycle timeout presets straight from the notification shade.
+- **Quick Settings Tile Variants**: Choose between Infinite Toggle mode or Countdown Preset Cycle mode.
 
 ### 📶 2. Multi-SIM & Multi-eSIM Network Switch
 - **Per-SIM Control**: Independent network mode switching for each detected SIM card.
@@ -41,8 +37,9 @@
   - `5G Only` (NR Only - Force SA/NSA 5G connectivity)
   - `4G Only` (LTE Only - Lock device to reliable 4G)
   - `5G Auto` (NR / LTE / WCDMA preferred automatic switching)
+- **Quick Settings Interactive Drawer**: Tapping the Network Mode tile collapses the shade and instantly pops open a sleek bottom sheet drawer to configure active SIMs and modes with zero friction.
+- **Data SIM Switcher Tile**: Dedicated 1-tap tile to toggle default mobile data between SIM 1 and SIM 2.
 - **Privileged Backend**: Executes commands seamlessly via **Shizuku** or **Porter** without needing full device root.
-- **Quick Settings Tile**: Cycle network modes on the primary data SIM on the fly.
 
 ### ⚡ 3. Custom Animation Scales
 - **Fluid Window & Transition Speed**: Overwrite system limits with granular precision (from `0.0x` up to `10.0x`).
@@ -51,10 +48,13 @@
 - **Privilege Options**: Works with `WRITE_SECURE_SETTINGS` (via ADB) or zero-setup auto-delegation via Porter/Shizuku.
 - **Quick Settings Tile**: Toggle between high-speed 0.5x and standard 1.0x animations with one tap.
 
-### 🎨 4. Porter Design System
-- Built 100% with **Jetpack Compose** and **Material 3 Dynamic Theming**.
-- Consistent dark-mode optimized components: rounded cards, status badges, contextual action sheets, and custom sliders.
-- Native `StatusBarManager.requestAddTileService` prompts directly within the UI to add Quick Settings tiles in one click.
+### 🔄 4. Direct OTA Updates
+- **Built-in GitHub Releases updater**: Instantly checks for new versions with changelog and release notes.
+- **Direct in-app download and installation**: Downloads latest APKs and triggers system package installer via secure Android FileProvider.
+
+### 🧩 5. Safe Quick Settings Tile Placement
+- **Layout Preservation**: Never rearranges or disrupts your existing Quick Settings tiles. Appends new tiles strictly to the very end of `sysui_qs_tiles`.
+- **Variant Selection Dialogs**: When adding a tile, select between specialized variants (e.g. Network Drawer vs Data SIM Switcher; Infinite Toggle vs Cycle).
 
 ---
 
@@ -74,7 +74,8 @@ EssentialsX is designed with a tiered permission architecture:
 |:---|:---|:---|
 | **Caffeine** | None (`WAKE_LOCK`, `POST_NOTIFICATIONS`) | Ready out of the box |
 | **Animation Scales** | `WRITE_SECURE_SETTINGS` | Shizuku / Porter **OR** ADB command: <br/>`adb shell pm grant eu.zax4r0.essentialsx android.permission.WRITE_SECURE_SETTINGS` |
-| **Network Switch** | Privileged Shell (`cmd phone`) | Shizuku **OR** Porter daemon |
+| **Network Switch & Drawer** | Privileged Shell (`cmd phone`) | Shizuku **OR** Porter daemon |
+| **OTA Updates** | `REQUEST_INSTALL_PACKAGES` | Standard Android system prompt |
 
 ### Porter Integration
 EssentialsX seamlessly links with Porter daemon. If using Porter, add `eu.zax4r0.essentialsx` to your `porter.json` configuration:

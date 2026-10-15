@@ -49,14 +49,20 @@ class NetworkModeTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (!ShizukuHelper.hasPorterPermission()) {
-            ShizukuHelper.requestPermission()
-            updateTile()
-            return
+        val intent = Intent(this, NetworkModeDrawerActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        scope.launch {
-            NetworkModeController.toggleDefaultDataSimMode(this@NetworkModeTileService)
-            updateTile()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            startActivityAndCollapse(pendingIntent)
+        } else {
+            @Suppress("DEPRECATION")
+            startActivityAndCollapse(intent)
         }
     }
 
