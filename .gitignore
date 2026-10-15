@@ -11,3 +11,6 @@ local.properties
 app/build/
 *.hprof
 .kotlin
+*.jks
+*.keystore
+keystore.properties
