@@ -55,6 +55,7 @@ class NetworkModeDrawerActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setBackgroundDrawableResource(android.R.color.transparent)
         enableEdgeToEdge()
 
         setContent {
