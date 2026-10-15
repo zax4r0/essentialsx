@@ -1,0 +1,52 @@
+<resources>
+    <string name="app_name">EssentialsX</string>
+    <string name="porter_navigate_back">Back</string>
+
+    <!-- Tiles -->
+    <string name="tile_caffeine">Caffeine</string>
+    <string name="tile_network_switch">Network Mode</string>
+    <string name="tile_custom_animator">Animator</string>
+
+    <!-- Caffeine -->
+    <string name="caffeine_title">Caffeine</string>
+    <string name="caffeine_summary">Keep your screen awake with customizable timeouts</string>
+    <string name="caffeine_active">Caffeine is active</string>
+    <string name="caffeine_inactive">Screen will sleep normally</string>
+    <string name="caffeine_timeout_title">Session Timeout</string>
+    <string name="caffeine_abort_screen_off">Stop on Screen Off</string>
+    <string name="caffeine_abort_screen_off_summary">Automatically end caffeine when the display turns off</string>
+    <string name="caffeine_notif_channel">Caffeine Active</string>
+    <string name="caffeine_notif_title">Caffeine is keeping screen awake</string>
+    <string name="caffeine_notif_stop">Turn Off</string>
+
+    <!-- Network Switch -->
+    <string name="network_title">Network Switch</string>
+    <string name="network_summary">Lock network mode to 5G Only (NR) or 4G Only (LTE)</string>
+    <string name="network_mode_nr_only">5G Only (NR)</string>
+    <string name="network_mode_lte_only">4G Only (LTE)</string>
+    <string name="network_mode_5g_pref">5G Preferred (Auto)</string>
+    <string name="network_permission_required">Porter / Shizuku permission required</string>
+    <string name="network_permission_summary">Grant permission through Porter to toggle network modes</string>
+    <string name="network_permission_granted">Porter Connected</string>
+    <string name="network_grant_permission">Connect to Porter</string>
+
+    <!-- Custom Animator -->
+    <string name="animator_title">Custom Animator</string>
+    <string name="animator_summary">Fine-tune system window, transition, and duration scales</string>
+    <string name="animator_window_scale">Window Animation Scale</string>
+    <string name="animator_transition_scale">Transition Animation Scale</string>
+    <string name="animator_duration_scale">Animator Duration Scale</string>
+    <string name="animator_link_scales">Link All Scales</string>
+    <string name="animator_link_scales_summary">Adjust all 3 animation scales simultaneously</string>
+    <string name="animator_preset_off">Off (0.0x)</string>
+    <string name="animator_preset_snappy">Snappy (0.25x)</string>
+    <string name="animator_preset_fast">Fast (0.5x)</string>
+    <string name="animator_preset_smooth">Smooth (0.75x)</string>
+    <string name="animator_preset_default">Default (1.0x)</string>
+    <string name="animator_preset_slow">Slow (1.5x)</string>
+    <string name="animator_reset">Reset to Default (1.0x)</string>
+
+    <!-- General -->
+    <string name="status_granted">Granted</string>
+    <string name="status_missing">Missing Permission</string>
+</resources>
