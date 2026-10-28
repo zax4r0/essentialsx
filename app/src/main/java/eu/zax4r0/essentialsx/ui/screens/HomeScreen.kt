@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import eu.zax4r0.essentialsx.R
 import eu.zax4r0.essentialsx.features.animator.AnimatorController
@@ -48,7 +49,7 @@ import eu.zax4r0.essentialsx.utils.UpdateManager
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(bottomInset: Dp = 0.dp) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -618,7 +619,7 @@ fun HomeScreen() {
             }
 
             item {
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(32.dp + bottomInset))
             }
         }
     }

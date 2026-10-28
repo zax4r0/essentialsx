@@ -15,8 +15,8 @@ android {
         applicationId = "eu.zax4r0.essentialsx"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0-beta.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -93,6 +93,11 @@ dependencies {
     // Shizuku API for Network Switch (and root/adb command execution)
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+
+    // Hidden API access (connect to a saved Wi-Fi network through Shizuku)
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
+
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
