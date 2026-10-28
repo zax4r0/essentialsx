@@ -1,25 +1,23 @@
 package eu.zax4r0.essentialsx.ui.screens
 
-import android.app.StatusBarManager
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
 import android.net.Uri
-import android.os.Build
 import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,14 +34,13 @@ import eu.zax4r0.essentialsx.features.network.NetworkModeController
 import eu.zax4r0.essentialsx.features.network.NetworkModeTileService
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkController
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkTileService
+import eu.zax4r0.essentialsx.features.wifi.WifiPriorityController
 import eu.zax4r0.essentialsx.ui.AboutDialog
 import eu.zax4r0.essentialsx.ui.ChoiceDialog
 import eu.zax4r0.essentialsx.ui.PorterScaffold
 import eu.zax4r0.essentialsx.ui.SettingsCategory
 import eu.zax4r0.essentialsx.ui.SettingsItem
 import eu.zax4r0.essentialsx.ui.SettingsSwitch
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import eu.zax4r0.essentialsx.utils.QuickSettingsTileManager
 import eu.zax4r0.essentialsx.utils.SettingsHelper
 import eu.zax4r0.essentialsx.utils.ShizukuHelper
@@ -51,7 +48,10 @@ import eu.zax4r0.essentialsx.utils.UpdateManager
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(bottomInset: Dp = 0.dp) {
+fun HomeScreen(
+    bottomInset: Dp = 0.dp,
+    onNavigateToTab: (Int) -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -67,9 +67,11 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
     val caffeineAbortScreenOff by CaffeineController.abortOnScreenOff.collectAsState()
     var showTimeoutDialog by remember { mutableStateOf(false) }
 
-    // Network states
+    // Overview states from other controllers
     val sims by NetworkModeController.sims.collectAsState()
-    val isNetworkLoading by NetworkModeController.isLoading.collectAsState()
+    val isSmartNetEnabled by SmartNetworkController.isEnabled.collectAsState()
+    val connectedWifi by WifiPriorityController.connectedSsid.collectAsState()
+    val savedWifis by WifiPriorityController.networks.collectAsState()
     var showSmartNetTileDialog by remember { mutableStateOf(false) }
 
     // Animator states
@@ -84,8 +86,9 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
     var showAboutDialog by remember { mutableStateOf(false) }
 
     var isCheckingUpdate by remember { mutableStateOf(false) }
-    var availableUpdate by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
-    var updateDownloadProgress by remember { mutableStateOf<Int?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    val availableUpdate by UpdateManager.availableUpdate.collectAsState()
+    val downloadState by UpdateManager.downloadState.collectAsState()
     val includePreReleases by UpdateManager.includePreReleases.collectAsState()
 
     fun openUrl(url: String) {
@@ -111,6 +114,7 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
         ShizukuHelper.updateState()
         hasWriteSecure.value = SettingsHelper.hasWriteSecureSettings(context)
         NetworkModeController.refresh(context)
+        WifiPriorityController.refresh()
     }
 
     if (showTimeoutDialog) {
@@ -141,7 +145,7 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
             choices = choices,
             selected = 0,
             onDismiss = { showCaffeineVariantDialog = false },
-            onSelect = { idx ->
+            onSelect = { _ ->
                 showCaffeineVariantDialog = false
                 addTile(CaffeineTileService::class.java, "Caffeine", R.drawable.ic_coffee)
             }
@@ -198,7 +202,7 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
             choices = choices,
             selected = 0,
             onDismiss = { showAnimatorVariantDialog = false },
-            onSelect = { idx ->
+            onSelect = { _ ->
                 showAnimatorVariantDialog = false
                 addTile(AnimatorTileService::class.java, "Animator", R.drawable.ic_speed)
             }
@@ -215,11 +219,14 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
         )
     }
 
-    if (availableUpdate != null) {
+    if (showUpdateDialog && availableUpdate != null) {
         val update = availableUpdate!!
+        val isDownloading = downloadState is UpdateManager.DownloadState.Downloading
+        val isReadyToInstall = (downloadState as? UpdateManager.DownloadState.ReadyToInstall)?.versionName == update.versionName
         AlertDialog(
             onDismissRequest = {
-                if (updateDownloadProgress == null) availableUpdate = null
+                // Allow dismissing freely even while downloading — download continues in background!
+                showUpdateDialog = false
             },
             icon = {
                 Icon(
@@ -263,54 +270,69 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
                         }
                     }
 
-                    if (updateDownloadProgress != null) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            LinearProgressIndicator(
-                                progress = { updateDownloadProgress!!.toFloat() / 100f },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                    when (val state = downloadState) {
+                        is UpdateManager.DownloadState.Downloading -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                LinearProgressIndicator(
+                                    progress = { state.progress.toFloat() / 100f },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    UpdateManager.formatDownloadStatus(state),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        is UpdateManager.DownloadState.Failed -> {
                             Text(
-                                "Downloading: ${updateDownloadProgress}%",
+                                state.message,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
+                        else -> {}
                     }
                 }
             },
             confirmButton = {
-                if (update.downloadUrl != null) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                updateDownloadProgress = 0
-                                UpdateManager.downloadAndInstall(
+                when {
+                    isReadyToInstall -> {
+                        Button(onClick = {
+                            showUpdateDialog = false
+                            UpdateManager.installDownloadedUpdate(context)
+                        }) {
+                            Text("Install Now")
+                        }
+                    }
+                    update.downloadUrl != null -> {
+                        Button(
+                            onClick = {
+                                UpdateManager.startBackgroundDownload(
                                     context = context,
-                                    downloadUrl = update.downloadUrl,
-                                    onProgress = { updateDownloadProgress = it },
+                                    update = update,
                                     onError = { err ->
-                                        updateDownloadProgress = null
                                         Toast.makeText(context, err, Toast.LENGTH_LONG).show()
                                     }
                                 )
-                            }
-                        },
-                        enabled = updateDownloadProgress == null
-                    ) {
-                        Text(if (updateDownloadProgress != null) "Downloading..." else "Download & Install")
+                            },
+                            enabled = !isDownloading
+                        ) {
+                            Text(if (isDownloading) "Downloading in BG..." else "Download & Install")
+                        }
                     }
-                } else {
-                    Button(onClick = { openUrl(update.htmlUrl) }) {
-                        Text("View on GitHub")
+                    else -> {
+                        Button(onClick = { openUrl(update.htmlUrl) }) {
+                            Text("View on GitHub")
+                        }
                     }
                 }
             },
             dismissButton = {
                 OutlinedButton(
-                    onClick = { availableUpdate = null },
-                    enabled = updateDownloadProgress == null
+                    onClick = { showUpdateDialog = false }
                 ) {
-                    Text("Later")
+                    Text(if (isDownloading) "Hide (Keep Downloading)" else "Later")
                 }
             }
         )
@@ -318,13 +340,94 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
 
     PorterScaffold(
         title = stringResource(R.string.app_name),
-        titleBadge = if (hasPorterPermission) "Porter Ready" else null
+        titleBadge = if (hasPorterPermission) "Porter Ready" else null,
+        actions = {
+            IconButton(onClick = { showAboutDialog = true }) {
+                Icon(Icons.TwoTone.Info, contentDescription = "About EssentialsX")
+            }
+        }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
         ) {
+            if (!hasPorterPermission) {
+                item(key = "porter_warning") {
+                    SettingsItem(
+                        title = if (!isPorterRunning) "Porter is not running" else "Permission required",
+                        icon = Icons.TwoTone.Warning,
+                        summary = if (!isPorterRunning) "Start Porter / Shizuku to unlock system controls" else "Tap to grant Porter / Shizuku permission",
+                        onClick = { ShizukuHelper.requestPermission() }
+                    )
+                }
+            }
+
+            // ================= QUICK DASHBOARD HUB =================
+            item(key = "dashboard_hub") {
+                val activeSimCount = sims.count { it.isActive }
+                val defaultSim = sims.firstOrNull { it.isActive && it.isDefaultData }
+                val simSubtitle = when {
+                    defaultSim != null -> "${defaultSim.displayName} • ${defaultSim.currentMode.shortName}"
+                    activeSimCount > 0 -> "$activeSimCount Active • ${sims.size} Total"
+                    else -> "${sims.size} Profiles"
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DashboardTileCard(
+                            title = "SIM & eSIM",
+                            subtitle = simSubtitle,
+                            icon = Icons.TwoTone.SimCard,
+                            isActive = activeSimCount > 0,
+                            onClick = { onNavigateToTab(1) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardTileCard(
+                            title = "Smart Net",
+                            subtitle = if (isSmartNetEnabled) "Engine Active" else "Tap to configure",
+                            icon = Icons.TwoTone.AutoAwesome,
+                            isActive = isSmartNetEnabled,
+                            onClick = { onNavigateToTab(2) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DashboardTileCard(
+                            title = "Wi-Fi Priority",
+                            subtitle = connectedWifi ?: "${savedWifis.size} Saved Networks",
+                            icon = Icons.TwoTone.Wifi,
+                            isActive = connectedWifi != null,
+                            onClick = { onNavigateToTab(3) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardTileCard(
+                            title = "Caffeine",
+                            subtitle = if (isCaffeineActive) {
+                                "Awake (${CaffeineController.formatDuration(caffeineRemaining)})"
+                            } else {
+                                "Normal Sleep"
+                            },
+                            icon = Icons.TwoTone.LocalCafe,
+                            isActive = isCaffeineActive,
+                            onClick = { CaffeineController.toggle(context) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
 
             // ================= CAFFEINE =================
             item {
@@ -362,49 +465,6 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
                     summary = stringResource(R.string.caffeine_abort_screen_off_summary),
                     onCheckedChange = { CaffeineController.setAbortOnScreenOff(context, it) }
                 )
-            }
-
-            // ================= NETWORK SWITCH =================
-            item {
-                SettingsCategory(stringResource(R.string.network_title))
-            }
-
-            if (!hasPorterPermission) {
-                item {
-                    SettingsItem(
-                        title = if (!isPorterRunning) "Porter is not running" else "Permission required",
-                        icon = Icons.TwoTone.Warning,
-                        summary = if (!isPorterRunning) "Start Porter to switch network modes" else "Tap to grant Porter / Shizuku permission",
-                        onClick = { ShizukuHelper.requestPermission() }
-                    )
-                }
-            }
-
-            if (sims.isEmpty()) {
-                item {
-                    SettingsItem(
-                        title = "No SIM or eSIM detected",
-                        icon = Icons.TwoTone.SignalCellularOff,
-                        summary = if (hasPorterPermission) "Refreshing..." else "Grant Porter permission to query SIMs",
-                        onClick = {
-                            scope.launch { NetworkModeController.refresh(context) }
-                        }
-                    )
-                }
-            } else {
-                items(sims.size) { index ->
-                    val sim = sims[index]
-                    SimNetworkCard(
-                        sim = sim,
-                        enabled = hasPorterPermission && !isNetworkLoading,
-                        isLoading = isNetworkLoading,
-                        onSelectMode = { mode ->
-                            scope.launch {
-                                NetworkModeController.setModeForSim(context, sim, mode)
-                            }
-                        }
-                    )
-                }
             }
 
             // ================= CUSTOM ANIMATOR =================
@@ -572,52 +632,122 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
 
             // ================= ABOUT & DEVELOPER =================
             item {
-                SettingsCategory("About & Developer")
+                SettingsCategory("Updates & About")
             }
 
             item {
-                SettingsItem(
-                    title = "Check for Updates",
-                    icon = Icons.TwoTone.SystemUpdate,
-                    summary = if (isCheckingUpdate) "Checking GitHub Releases..." else "OTA updates via GitHub • Current: v${UpdateManager.getCurrentVersion(context)}",
-                    trailing = {
+                val updateSummary = when (val state = downloadState) {
+                    is UpdateManager.DownloadState.Downloading -> UpdateManager.formatDownloadStatus(state)
+                    is UpdateManager.DownloadState.ReadyToInstall -> "Downloaded v${state.versionName} • Ready to install"
+                    is UpdateManager.DownloadState.Failed -> state.message
+                    UpdateManager.DownloadState.Idle -> {
                         if (isCheckingUpdate) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            "Checking GitHub Releases..."
+                        } else if (availableUpdate?.isUpdateAvailable == true) {
+                            "Update available: v${availableUpdate!!.versionName} • Tap to view or download"
                         } else {
-                            FilledTonalButton(
-                                onClick = {
-                                    scope.launch {
-                                        isCheckingUpdate = true
-                                        val info = UpdateManager.checkForUpdate(context)
-                                        isCheckingUpdate = false
-                                        if (info != null && info.isUpdateAvailable) {
-                                            availableUpdate = info
-                                        } else {
-                                            Toast.makeText(context, "You are using the latest version (v${UpdateManager.getCurrentVersion(context)})", Toast.LENGTH_SHORT).show()
+                            "OTA updates via GitHub • Current: v${UpdateManager.getCurrentVersion(context)}"
+                        }
+                    }
+                }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SettingsItem(
+                        title = "Check for Updates",
+                        icon = Icons.TwoTone.SystemUpdate,
+                        summary = updateSummary,
+                        trailing = {
+                            when (val state = downloadState) {
+                                is UpdateManager.DownloadState.Downloading -> {
+                                    CircularProgressIndicator(
+                                        progress = { state.progress.toFloat() / 100f },
+                                        modifier = Modifier.size(22.dp),
+                                        strokeWidth = 2.5.dp
+                                    )
+                                }
+                                is UpdateManager.DownloadState.ReadyToInstall -> {
+                                    Button(
+                                        onClick = { UpdateManager.installDownloadedUpdate(context) },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Install")
+                                    }
+                                }
+                                else -> {
+                                    if (isCheckingUpdate) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        FilledTonalButton(
+                                            onClick = {
+                                                if (availableUpdate?.isUpdateAvailable == true) {
+                                                    showUpdateDialog = true
+                                                } else {
+                                                    scope.launch {
+                                                        isCheckingUpdate = true
+                                                        val info = UpdateManager.checkForUpdate(context)
+                                                        isCheckingUpdate = false
+                                                        if (info != null && info.isUpdateAvailable) {
+                                                            showUpdateDialog = true
+                                                        } else {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "You are using the latest version (v${UpdateManager.getCurrentVersion(context)})",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(if (availableUpdate?.isUpdateAvailable == true) "Update" else "Check")
                                         }
                                     }
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text("Check")
+                                }
                             }
-                        }
-                    },
-                    onClick = {
-                        if (!isCheckingUpdate) {
-                            scope.launch {
-                                isCheckingUpdate = true
-                                val info = UpdateManager.checkForUpdate(context)
-                                isCheckingUpdate = false
-                                if (info != null && info.isUpdateAvailable) {
-                                    availableUpdate = info
-                                } else {
-                                    Toast.makeText(context, "You are using the latest version (v${UpdateManager.getCurrentVersion(context)})", Toast.LENGTH_SHORT).show()
+                        },
+                        onClick = {
+                            when (downloadState) {
+                                is UpdateManager.DownloadState.Downloading -> {
+                                    showUpdateDialog = true
+                                }
+                                is UpdateManager.DownloadState.ReadyToInstall -> {
+                                    UpdateManager.installDownloadedUpdate(context)
+                                }
+                                else -> {
+                                    if (availableUpdate?.isUpdateAvailable == true) {
+                                        showUpdateDialog = true
+                                    } else if (!isCheckingUpdate) {
+                                        scope.launch {
+                                            isCheckingUpdate = true
+                                            val info = UpdateManager.checkForUpdate(context)
+                                            isCheckingUpdate = false
+                                            if (info != null && info.isUpdateAvailable) {
+                                                showUpdateDialog = true
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "You are using the latest version (v${UpdateManager.getCurrentVersion(context)})",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
+                    )
+
+                    val dl = downloadState
+                    if (dl is UpdateManager.DownloadState.Downloading) {
+                        LinearProgressIndicator(
+                            progress = { dl.progress.toFloat() / 100f },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 2.dp)
+                        )
                     }
-                )
+                }
             }
 
             item {
@@ -636,37 +766,19 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
 
             item {
                 SettingsItem(
+                    title = "What's New in v${UpdateManager.getCurrentVersion(context)}",
+                    icon = Icons.TwoTone.AutoAwesome,
+                    summary = "View changelog & new features in this release",
+                    onClick = { UpdateManager.openWhatsNew() }
+                )
+            }
+
+            item {
+                SettingsItem(
                     title = "EssentialsX v${UpdateManager.getCurrentVersion(context)}",
                     icon = Icons.TwoTone.Info,
-                    summary = "Advanced utility suite • Click for details",
+                    summary = "By zax4r0 • Tap for GitHub & license details",
                     onClick = { showAboutDialog = true }
-                )
-            }
-
-            item {
-                SettingsItem(
-                    title = "Developer: zax4r0",
-                    icon = Icons.TwoTone.Person,
-                    summary = "github.com/zax4r0 • zax4r0.dev",
-                    onClick = { openUrl("https://github.com/zax4r0") }
-                )
-            }
-
-            item {
-                SettingsItem(
-                    title = "GitHub Repository",
-                    icon = Icons.TwoTone.Code,
-                    summary = "github.com/zax4r0/essentialsx",
-                    onClick = { openUrl("https://github.com/zax4r0/essentialsx") }
-                )
-            }
-
-            item {
-                SettingsItem(
-                    title = "License",
-                    icon = Icons.TwoTone.Article,
-                    summary = "MIT Open Source License",
-                    onClick = { openUrl("https://opensource.org/licenses/MIT") }
                 )
             }
 
@@ -678,191 +790,64 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
 }
 
 @Composable
-fun SimNetworkCard(
-    sim: NetworkModeController.SimInfo,
-    enabled: Boolean,
-    isLoading: Boolean,
-    onSelectMode: (NetworkModeController.NetworkMode) -> Unit
+private fun DashboardTileCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val cardAlpha = if (sim.isActive) 1f else 0.45f
-    val cardBorderColor = if (sim.isActive && sim.isDefaultData) {
+    val containerColor = if (isActive) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+    val borderColor = if (isActive) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
     } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (sim.isActive) 0.5f else 0.2f)
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    }
+    val iconTint = if (isActive) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .alpha(cardAlpha),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (sim.isActive) 0.45f else 0.2f),
-        border = BorderStroke(1.dp, cardBorderColor)
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header: Icon + Name + Badges
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    imageVector = if (sim.isActive) Icons.TwoTone.SignalCellularAlt else Icons.TwoTone.SignalCellularOff,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = if (sim.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = iconTint
+            )
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = sim.displayName,
-                    style = MaterialTheme.typography.titleMedium,
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                // Badges
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (sim.isEmbedded) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        ) {
-                            Text(
-                                "eSIM",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    } else {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ) {
-                            Text(
-                                "SIM",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-
-                    if (sim.isActive) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                        ) {
-                            Text(
-                                "Slot ${sim.slotIndex + 1}",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                        if (sim.isDefaultData) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ) {
-                                Text(
-                                    "Data",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
-                        }
-                    } else {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            contentColor = MaterialTheme.colorScheme.outline
-                        ) {
-                            Text(
-                                "Inactive",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Subtitle status
-            val statusText = if (sim.isActive) {
-                val carrier = if (sim.carrierName.isNotBlank() && !sim.carrierName.equals(sim.displayName, ignoreCase = true)) {
-                    " • ${sim.carrierName}"
-                } else ""
-                "Current: ${sim.currentMode.displayName}$carrier"
-            } else {
-                if (sim.isEmbedded) "Inactive eSIM profile (not loaded in slot)" else "Inactive physical SIM"
-            }
-
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Buttons: 5G Only, 4G Only, 5G Auto
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val modes = listOf(
-                    NetworkModeController.NetworkMode.MODE_NR_ONLY to "5G Only",
-                    NetworkModeController.NetworkMode.MODE_LTE_ONLY to "4G Only",
-                    NetworkModeController.NetworkMode.MODE_5G_PREF to "5G Auto"
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                modes.forEach { (mode, label) ->
-                    val isSelected = sim.isActive && (sim.currentMode == mode)
-                    val buttonEnabled = sim.isActive && enabled && !isLoading
-
-                    if (isSelected) {
-                        Button(
-                            onClick = { onSelectMode(mode) },
-                            enabled = buttonEnabled,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = { onSelectMode(mode) },
-                            enabled = buttonEnabled,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                label,
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
             }
         }
     }

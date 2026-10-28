@@ -899,7 +899,7 @@ class SmartNetworkService : Service() {
 
     companion object {
         const val CHANNEL_ID = "smart_network_engine_channel"
-        const val NOTIFICATION_ID = 2002
+        const val NOTIFICATION_ID = 2003
         const val ACTION_STOP = "action_stop_smart_network"
 
         private const val EVALUATION_INTERVAL_SCREEN_ON_MS = 12_000L

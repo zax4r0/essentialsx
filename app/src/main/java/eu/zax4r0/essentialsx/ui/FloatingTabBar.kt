@@ -70,7 +70,7 @@ fun FloatingTabBar(
                         .clip(CircleShape)
                         .background(container)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) })
-                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                        .padding(horizontal = 15.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(

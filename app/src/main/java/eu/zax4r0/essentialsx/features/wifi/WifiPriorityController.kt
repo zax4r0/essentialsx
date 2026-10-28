@@ -70,13 +70,67 @@ object WifiPriorityController {
     }
 
     fun move(context: Context, from: Int, to: Int) {
-        val list = _networks.value.toMutableList()
-        if (from !in list.indices || to !in list.indices || from == to) return
-        list.add(to, list.removeAt(from))
-        _networks.value = list
-        order = list.map { it.ssid }
+        val current = _networks.value
+        val reordered = reorderNetworks(current, from, to)
+        if (reordered === current) return
+        _networks.value = reordered
+        order = reordered.map { it.ssid }
+        // Reset retry cooldown so user-initiated priority reordering switches immediately
+        lastAttemptSsid = null
+        lastAttemptAt = 0L
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString(KEY_ORDER, JSONArray(order).toString()).apply()
+    }
+
+    /**
+     * Promotes [ssid] to Priority #1 (top of the saved list), persists the order,
+     * and immediately connects to the highest-priority in-range network.
+     */
+    suspend fun moveToTopAndConnect(context: Context, ssid: String) {
+        val current = _networks.value
+        val reordered = moveSsidToTop(current, ssid)
+        if (reordered !== current) {
+            _networks.value = reordered
+            order = reordered.map { it.ssid }
+            lastAttemptSsid = null
+            lastAttemptAt = 0L
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_ORDER, JSONArray(order).toString()).apply()
+        }
+        switchToHighestPriorityNow()
+    }
+
+    /**
+     * Immediately evaluates the current priority order and connects to the highest-priority
+     * saved Wi-Fi network in range without waiting for the 30s background timer or 4s scan delay.
+     */
+    suspend fun switchToHighestPriorityNow() {
+        if (!ShizukuHelper.hasPorterPermission()) return
+        withContext(Dispatchers.IO) {
+            if (_inRange.value.isEmpty() || _networks.value.isEmpty()) {
+                val snap = readSnapshot()
+                publish(snap)
+                if (!snap.wifiOn) return@withContext
+            }
+            val target = pickTarget(_networks.value, _inRange.value, _connectedSsid.value)
+                ?: return@withContext
+            val now = System.currentTimeMillis()
+            if (shouldThrottleAttempt(target.ssid, lastAttemptSsid, lastAttemptAt, now, forceImmediate = true)) {
+                return@withContext
+            }
+            lastAttemptSsid = target.ssid
+            lastAttemptAt = now
+
+            Log.i(TAG, "Immediate reorder switch to ${target.ssid} (id ${target.id})")
+            if (connectSaved(target.id)) {
+                delay(1_500L)
+                publish(readSnapshot())
+                if (_connectedSsid.value != target.ssid) {
+                    delay(2_000L)
+                    publish(readSnapshot())
+                }
+            }
+        }
     }
 
     suspend fun refresh(scan: Boolean = false) {
@@ -103,7 +157,9 @@ object WifiPriorityController {
             val target = pickTarget(_networks.value, snapshot.visible, snapshot.connected)
                 ?: return@withContext
             val now = System.currentTimeMillis()
-            if (target.ssid == lastAttemptSsid && now - lastAttemptAt < RETRY_INTERVAL_MS) return@withContext
+            if (shouldThrottleAttempt(target.ssid, lastAttemptSsid, lastAttemptAt, now, forceImmediate = false)) {
+                return@withContext
+            }
             lastAttemptSsid = target.ssid
             lastAttemptAt = now
 
@@ -156,6 +212,44 @@ object WifiPriorityController {
     }.getOrDefault(emptyList())
 
     // ---- pure logic (unit tested) ----
+
+    internal fun reorderNetworks(list: List<SavedNetwork>, from: Int, to: Int): List<SavedNetwork> {
+        if (from !in list.indices || to !in list.indices || from == to) return list
+        val mutable = list.toMutableList()
+        mutable.add(to, mutable.removeAt(from))
+        return mutable
+    }
+
+    internal fun moveSsidToTop(list: List<SavedNetwork>, ssid: String): List<SavedNetwork> {
+        val idx = list.indexOfFirst { it.ssid == ssid }
+        if (idx <= 0) return list
+        return reorderNetworks(list, from = idx, to = 0)
+    }
+
+    internal fun filterNetworks(
+        networks: List<SavedNetwork>,
+        query: String,
+        onlyInRange: Boolean = false,
+        inRange: Set<String> = emptySet()
+    ): List<SavedNetwork> {
+        val trimmed = query.trim()
+        return networks.filter { net ->
+            val matchesRange = !onlyInRange || (net.ssid in inRange)
+            val matchesQuery = trimmed.isEmpty() || net.ssid.contains(trimmed, ignoreCase = true)
+            matchesRange && matchesQuery
+        }
+    }
+
+    internal fun shouldThrottleAttempt(
+        targetSsid: String,
+        lastAttemptSsid: String?,
+        lastAttemptAt: Long,
+        now: Long,
+        forceImmediate: Boolean = false
+    ): Boolean {
+        if (forceImmediate) return false
+        return targetSsid == lastAttemptSsid && (now - lastAttemptAt) < RETRY_INTERVAL_MS
+    }
 
     // Highest-priority network that is in range; null if we're already on it.
     internal fun pickTarget(ranked: List<SavedNetwork>, visible: Set<String>, connected: String?): SavedNetwork? =

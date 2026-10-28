@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -26,6 +27,7 @@ import androidx.compose.ui.zIndex
 import eu.zax4r0.essentialsx.R
 import eu.zax4r0.essentialsx.features.wifi.WifiPriorityController
 import eu.zax4r0.essentialsx.ui.PorterScaffold
+import eu.zax4r0.essentialsx.ui.PorterSearchBar
 import eu.zax4r0.essentialsx.ui.SettingsCategory
 import eu.zax4r0.essentialsx.ui.SettingsItem
 import eu.zax4r0.essentialsx.ui.SettingsSwitch
@@ -48,17 +50,39 @@ fun WifiPriorityScreen(bottomInset: Dp = 0.dp) {
     val connectedSsid by WifiPriorityController.connectedSsid.collectAsState()
     val isEnabled by WifiPriorityController.isEnabled.collectAsState()
 
+    // Search & filter state
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var onlyInRange by rememberSaveable { mutableStateOf(false) }
+    val isFiltering = searchQuery.isNotBlank() || onlyInRange
+
+    val filteredNetworks = remember(networks, searchQuery, onlyInRange, inRange) {
+        WifiPriorityController.filterNetworks(
+            networks = networks,
+            query = searchQuery,
+            onlyInRange = onlyInRange,
+            inRange = inRange
+        )
+    }
+
     // Drag-to-reorder state
     val listState = rememberLazyListState()
     var draggingSsid by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var lastSwapOffset by remember { mutableStateOf<Int?>(null) }
+    var didReorder by remember { mutableStateOf(false) }
     val latestNetworks by rememberUpdatedState(networks)
 
     fun endDrag() {
+        val shouldSwitchNow = didReorder
         draggingSsid = null
         dragOffset = 0f
         lastSwapOffset = null
+        didReorder = false
+        if (shouldSwitchNow) {
+            scope.launch {
+                WifiPriorityController.switchToHighestPriorityNow()
+            }
+        }
     }
 
     // Swap the dragged row with the row its centre is over.
@@ -78,6 +102,7 @@ fun WifiPriorityScreen(bottomInset: Dp = 0.dp) {
         val to = latestNetworks.indexOfFirst { it.ssid == target.key }
         if (from < 0 || to < 0) return
         WifiPriorityController.move(context, from, to)
+        didReorder = true
         dragOffset += dragged.offset - target.offset
         lastSwapOffset = dragged.offset
     }
@@ -154,16 +179,84 @@ fun WifiPriorityScreen(bottomInset: Dp = 0.dp) {
                     summary = if (isEnabled) {
                         "Connects to the highest saved network in range"
                     } else {
-                        "Off"
+                        "Off • Reordering still switches immediately"
                     },
                     enabled = hasPorterPermission || isEnabled,
                     onCheckedChange = { WifiPriorityController.setEnabled(context, it) }
                 )
             }
 
+            // ================= SEARCH & FILTERS =================
+            item(key = "search_bar") {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    PorterSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        placeholder = "Search saved Wi-Fi networks..."
+                    )
+
+                    val inRangeSavedCount = remember(networks, inRange) {
+                        networks.count { it.ssid in inRange }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = !onlyInRange,
+                            onClick = { onlyInRange = false },
+                            label = {
+                                Text(
+                                    text = "All (${networks.size})",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            leadingIcon = if (!onlyInRange) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.TwoTone.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null
+                        )
+
+                        FilterChip(
+                            selected = onlyInRange,
+                            onClick = { onlyInRange = !onlyInRange },
+                            label = {
+                                Text(
+                                    text = "In Range ($inRangeSavedCount)",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            leadingIcon = if (onlyInRange) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.TwoTone.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
+            }
+
             // ================= SAVED NETWORKS =================
             item(key = "category_networks") {
-                SettingsCategory("Saved networks • top = highest priority")
+                val label = if (isFiltering) {
+                    "Showing ${filteredNetworks.size} of ${networks.size} • Tap ↑ to promote & connect"
+                } else {
+                    "Saved networks • Drag or tap ↑ to prioritize & connect"
+                }
+                SettingsCategory(label)
             }
 
             if (networks.isEmpty()) {
@@ -175,14 +268,37 @@ fun WifiPriorityScreen(bottomInset: Dp = 0.dp) {
                         onClick = { scope.launch { WifiPriorityController.refresh() } }
                     )
                 }
+            } else if (filteredNetworks.isEmpty()) {
+                item(key = "no_matches") {
+                    SettingsItem(
+                        title = "No matching Wi-Fi networks",
+                        icon = Icons.TwoTone.SearchOff,
+                        summary = "Tap to clear search & filters",
+                        onClick = {
+                            searchQuery = ""
+                            onlyInRange = false
+                        }
+                    )
+                }
             } else {
-                itemsIndexed(networks, key = { _, network -> network.ssid }) { index, network ->
+                itemsIndexed(filteredNetworks, key = { _, network -> network.ssid }) { _, network ->
+                    val trueRank = remember(networks, network.ssid) {
+                        networks.indexOfFirst { it.ssid == network.ssid } + 1
+                    }
                     val isDragging = draggingSsid == network.ssid
                     WifiNetworkCard(
-                        rank = index + 1,
+                        rank = trueRank,
                         ssid = network.ssid,
                         isConnected = network.ssid == connectedSsid,
                         isInRange = network.ssid in inRange,
+                        showDragHandle = !isFiltering,
+                        onPromoteToTop = if (trueRank > 1) {
+                            {
+                                scope.launch {
+                                    WifiPriorityController.moveToTopAndConnect(context, network.ssid)
+                                }
+                            }
+                        } else null,
                         modifier = if (isDragging) {
                             Modifier
                                 .zIndex(1f)
@@ -190,21 +306,24 @@ fun WifiPriorityScreen(bottomInset: Dp = 0.dp) {
                         } else {
                             Modifier.animateItem()
                         },
-                        dragHandle = Modifier.pointerInput(network.ssid) {
-                            detectDragGestures(
-                                onDragStart = {
-                                    draggingSsid = network.ssid
-                                    dragOffset = 0f
-                                    lastSwapOffset = null
-                                },
-                                onDragEnd = { endDrag() },
-                                onDragCancel = { endDrag() },
-                                onDrag = { change, drag ->
-                                    change.consume()
-                                    dragOffset += drag.y
-                                    checkSwap()
-                                }
-                            )
+                        dragHandle = Modifier.pointerInput(network.ssid, isFiltering) {
+                            if (!isFiltering) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        draggingSsid = network.ssid
+                                        dragOffset = 0f
+                                        lastSwapOffset = null
+                                        didReorder = false
+                                    },
+                                    onDragEnd = { endDrag() },
+                                    onDragCancel = { endDrag() },
+                                    onDrag = { change, drag ->
+                                        change.consume()
+                                        dragOffset += drag.y
+                                        checkSwap()
+                                    }
+                                )
+                            }
                         }
                     )
                 }
@@ -223,6 +342,8 @@ private fun WifiNetworkCard(
     ssid: String,
     isConnected: Boolean,
     isInRange: Boolean,
+    showDragHandle: Boolean,
+    onPromoteToTop: (() -> Unit)?,
     modifier: Modifier,
     dragHandle: Modifier
 ) {
@@ -268,22 +389,38 @@ private fun WifiNetworkCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Priority $rank • $status",
+                    text = "Priority #$rank • $status",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Box(
-                modifier = dragHandle.size(40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.TwoTone.DragHandle,
-                    contentDescription = "Drag to reorder",
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (onPromoteToTop != null) {
+                IconButton(
+                    onClick = onPromoteToTop,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.TwoTone.VerticalAlignTop,
+                        contentDescription = "Promote to Priority #1 and connect",
+                        modifier = Modifier.size(20.dp),
+                        tint = if (isInRange) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (showDragHandle) {
+                Box(
+                    modifier = dragHandle.size(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.TwoTone.DragHandle,
+                        contentDescription = "Drag to reorder",
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

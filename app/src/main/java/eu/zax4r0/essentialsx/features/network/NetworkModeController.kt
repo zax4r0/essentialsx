@@ -23,6 +23,13 @@ object NetworkModeController {
         MODE_2G_ONLY("2G Only", "2G Only")
     }
 
+    enum class SimFilter(val label: String) {
+        ALL("All"),
+        ACTIVE("Active"),
+        ESIM("eSIM"),
+        PHYSICAL("Physical")
+    }
+
     data class SimInfo(
         val subId: Int,
         val slotIndex: Int,          // 0, 1, or -1 (inactive)
@@ -215,6 +222,32 @@ object NetworkModeController {
     fun getDefaultTargetSim(): SimInfo? {
         val activeSims = _sims.value.filter { it.isActive }
         return activeSims.firstOrNull { it.isDefaultData } ?: activeSims.firstOrNull()
+    }
+
+    fun filterSims(
+        sims: List<SimInfo>,
+        query: String,
+        filter: SimFilter = SimFilter.ALL
+    ): List<SimInfo> {
+        val q = query.trim()
+        return sims.filter { sim ->
+            val categoryMatch = when (filter) {
+                SimFilter.ALL -> true
+                SimFilter.ACTIVE -> sim.isActive
+                SimFilter.ESIM -> sim.isEmbedded
+                SimFilter.PHYSICAL -> !sim.isEmbedded
+            }
+            if (!categoryMatch) return@filter false
+            if (q.isEmpty()) return@filter true
+
+            val slotLabel = if (sim.isActive) "slot ${sim.slotIndex + 1}" else "inactive"
+            val typeLabel = if (sim.isEmbedded) "esim" else "physical sim"
+            sim.displayName.contains(q, ignoreCase = true) ||
+                sim.carrierName.contains(q, ignoreCase = true) ||
+                slotLabel.contains(q, ignoreCase = true) ||
+                typeLabel.contains(q, ignoreCase = true) ||
+                sim.currentMode.displayName.contains(q, ignoreCase = true)
+        }
     }
 
     private fun queryCurrentMode(slotId: Int): NetworkMode {

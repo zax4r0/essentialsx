@@ -54,6 +54,77 @@ class WifiPriorityControllerTest {
         assertEquals(listOf(SavedNetwork(5, "Dup")), WifiPriorityController.applyOrder(saved, emptyList()))
     }
 
+    @Test
+    fun reorderingNetworkToTopImmediatelySelectsItAsSwitchTarget() {
+        // Initially connected to "Home" (rank 1), with "Office" (rank 2) also in range
+        val initial = listOf(home, office, phone)
+        val inRange = setOf("Home", "Office")
+        assertNull(WifiPriorityController.pickTarget(initial, inRange, "Home"))
+
+        // User drags "Office" (index 1) to top (index 0)
+        val reordered = WifiPriorityController.reorderNetworks(initial, from = 1, to = 0)
+        assertEquals(listOf(office, home, phone), reordered)
+
+        // Immediately picks "Office" as the switch target
+        val target = WifiPriorityController.pickTarget(reordered, inRange, "Home")
+        assertEquals(office, target)
+    }
+
+    @Test
+    fun userReorderBypassesRetryCooldown() {
+        val now = 1_000_000L
+        // Background tick within 2 minutes of last attempt on same SSID is throttled
+        assertTrue(
+            WifiPriorityController.shouldThrottleAttempt(
+                targetSsid = "Home",
+                lastAttemptSsid = "Home",
+                lastAttemptAt = now - 30_000L,
+                now = now,
+                forceImmediate = false
+            )
+        )
+        // User-initiated reorder switch bypasses the 2-minute cooldown immediately
+        assertFalse(
+            WifiPriorityController.shouldThrottleAttempt(
+                targetSsid = "Home",
+                lastAttemptSsid = "Home",
+                lastAttemptAt = now - 30_000L,
+                now = now,
+                forceImmediate = true
+            )
+        )
+    }
+
+    @Test
+    fun filtersWifiNetworksBySearchQueryAndInRange() {
+        val list = listOf(
+            SavedNetwork(1, "Home 5GHz"),
+            SavedNetwork(2, "WeWork Office"),
+            SavedNetwork(3, "Cafe Guest"),
+            SavedNetwork(4, "Home 2.4GHz")
+        )
+        val inRange = setOf("Home 5GHz", "Cafe Guest")
+
+        // Search by query (case-insensitive)
+        val homeMatches = WifiPriorityController.filterNetworks(list, query = "home", onlyInRange = false, inRange = inRange)
+        assertEquals(listOf("Home 5GHz", "Home 2.4GHz"), homeMatches.map { it.ssid })
+
+        // Filter by in-range only
+        val inRangeMatches = WifiPriorityController.filterNetworks(list, query = "", onlyInRange = true, inRange = inRange)
+        assertEquals(listOf("Home 5GHz", "Cafe Guest"), inRangeMatches.map { it.ssid })
+
+        // Combined search query + in-range filter
+        val combined = WifiPriorityController.filterNetworks(list, query = "home", onlyInRange = true, inRange = inRange)
+        assertEquals(listOf("Home 5GHz"), combined.map { it.ssid })
+    }
+
+    @Test
+    fun moveSsidToTopPromotesNetworkFromFilteredSearch() {
+        val list = listOf(home, office, phone)
+        val promoted = WifiPriorityController.moveSsidToTop(list, "Phone")
+        assertEquals(listOf(phone, home, office), promoted)
+    }
+
     // ---- parsers (rows captured from `cmd wifi` on Android 16) ----
 
     @Test
