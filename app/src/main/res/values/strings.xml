@@ -72,4 +72,16 @@
     <!-- General -->
     <string name="status_granted">Granted</string>
     <string name="status_missing">Missing Permission</string>
+
+    <!-- Home Screen Widgets -->
+    <string name="widget_caffeine_label">Caffeine Widget</string>
+    <string name="widget_caffeine_desc">Toggle screen keep-awake and cycle timer presets (5m, 10m, 30m, 1h, ∞)</string>
+    <string name="widget_smart_net_label">Smart Network Widget</string>
+    <string name="widget_smart_net_desc">Toggle Smart Network Engine or open the Smart Wi-Fi/Data/5G Tray</string>
+    <string name="widget_network_sim_label">Network &amp; Data SIM Widget</string>
+    <string name="widget_network_sim_desc">Open 5G/4G Network Mode Drawer or 1-tap switch Default Data SIM</string>
+    <string name="widget_animator_label">Animation Speed Widget</string>
+    <string name="widget_animator_desc">Cycle system animation speed between 1.0x, 0.5x Speed Boost, and 0.0x Off</string>
+    <string name="widget_control_bar_label">EssentialsX 4×1 Control Bar</string>
+    <string name="widget_control_bar_desc">All-in-one dock for Caffeine, Smart Network, 5G/SIM &amp; Animation Speed</string>
 </resources>

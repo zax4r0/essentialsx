@@ -488,15 +488,7 @@ fun HomeScreen(
                     ) {
                         CaffeineController.PRESETS.forEach { preset ->
                             val selected = caffeineTimeout == preset
-                            val shortLabel = when (preset) {
-                                -1 -> "∞"
-                                60 -> "1m"
-                                300 -> "5m"
-                                600 -> "10m"
-                                1800 -> "30m"
-                                3600 -> "1h"
-                                else -> "${preset / 60}m"
-                            }
+                            val shortLabel = CaffeineController.formatShortPreset(preset)
                             FilterChip(
                                 selected = selected,
                                 onClick = {

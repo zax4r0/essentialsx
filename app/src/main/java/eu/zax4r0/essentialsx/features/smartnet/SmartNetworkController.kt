@@ -222,5 +222,6 @@ object SmartNetworkController {
                 ComponentName(context, SmartNetworkTileService::class.java)
             )
         }
+        eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater.updateAll(context)
     }
 }

@@ -157,6 +157,11 @@ object UpdateManager {
             description = "Search SIMs, travel eSIMs, carriers, or saved Wi-Fi SSIDs with live filter chips (Active, eSIM, Physical, In Range)."
         ),
         WhatsNewItem(
+            badge = "Widgets",
+            title = "Home Screen Widgets & 4×1 Control Bar",
+            description = "Pin Caffeine, Smart Network, 5G/SIM Drawer, Animation Speed, or the all-in-one 4×1 Control Bar directly to your Home Screen."
+        ),
+        WhatsNewItem(
             badge = "Wi-Fi Priority",
             title = "Immediate Wi-Fi Switch on Reorder",
             description = "Dragging a Wi-Fi card or tapping ↑ immediately switches to the new #1 priority network in range with zero delay."

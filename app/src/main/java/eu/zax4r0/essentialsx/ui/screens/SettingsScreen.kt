@@ -25,6 +25,12 @@ import eu.zax4r0.essentialsx.features.network.DataSimTileService
 import eu.zax4r0.essentialsx.features.network.NetworkModeTileService
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkController
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkTileService
+import eu.zax4r0.essentialsx.features.widgets.AnimatorWidgetProvider
+import eu.zax4r0.essentialsx.features.widgets.CaffeineWidgetProvider
+import eu.zax4r0.essentialsx.features.widgets.EssentialsBarWidgetProvider
+import eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater
+import eu.zax4r0.essentialsx.features.widgets.NetworkSimWidgetProvider
+import eu.zax4r0.essentialsx.features.widgets.SmartNetworkWidgetProvider
 import eu.zax4r0.essentialsx.ui.AboutDialog
 import eu.zax4r0.essentialsx.ui.ChoiceDialog
 import eu.zax4r0.essentialsx.ui.PorterScaffold
@@ -502,6 +508,156 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                         }
                     },
                     onClick = { showAnimatorVariantDialog = true }
+                )
+            }
+
+            // ================= HOME SCREEN WIDGETS =================
+            item(key = "cat_widgets") {
+                SettingsCategory("Home Screen Widgets")
+            }
+
+            item(key = "widget_control_bar") {
+                SettingsItem(
+                    title = "EssentialsX 4×1 Control Bar",
+                    icon = Icons.TwoTone.Widgets,
+                    summary = "All-in-one dock: Caffeine, Smart Net, 5G/SIM Drawer & Animation Speed",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                EssentialsWidgetsUpdater.requestPinWidget(
+                                    context,
+                                    EssentialsBarWidgetProvider::class.java,
+                                    "EssentialsX 4×1 Control Bar"
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Pin")
+                        }
+                    },
+                    onClick = {
+                        EssentialsWidgetsUpdater.requestPinWidget(
+                            context,
+                            EssentialsBarWidgetProvider::class.java,
+                            "EssentialsX 4×1 Control Bar"
+                        )
+                    }
+                )
+            }
+
+            item(key = "widget_caffeine") {
+                SettingsItem(
+                    title = "Caffeine Widget (2×1)",
+                    icon = Icons.TwoTone.LocalCafe,
+                    summary = "Tap card to toggle Awake • Tap badge to cycle 5m / 10m / 30m / 1h / ∞",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                EssentialsWidgetsUpdater.requestPinWidget(
+                                    context,
+                                    CaffeineWidgetProvider::class.java,
+                                    "Caffeine Widget"
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Pin")
+                        }
+                    },
+                    onClick = {
+                        EssentialsWidgetsUpdater.requestPinWidget(
+                            context,
+                            CaffeineWidgetProvider::class.java,
+                            "Caffeine Widget"
+                        )
+                    }
+                )
+            }
+
+            item(key = "widget_smart_net") {
+                SettingsItem(
+                    title = "Smart Network Widget (2×1)",
+                    icon = Icons.TwoTone.AutoAwesome,
+                    summary = "Tap card to toggle engine • Tap Tray badge to open Smart Network Drawer",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                EssentialsWidgetsUpdater.requestPinWidget(
+                                    context,
+                                    SmartNetworkWidgetProvider::class.java,
+                                    "Smart Network Widget"
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Pin")
+                        }
+                    },
+                    onClick = {
+                        EssentialsWidgetsUpdater.requestPinWidget(
+                            context,
+                            SmartNetworkWidgetProvider::class.java,
+                            "Smart Network Widget"
+                        )
+                    }
+                )
+            }
+
+            item(key = "widget_network_sim") {
+                SettingsItem(
+                    title = "Network & Data SIM Widget (2×1)",
+                    icon = Icons.TwoTone.CellTower,
+                    summary = "Tap card for 5G/4G Mode Drawer • Tap SIM ⇄ badge to switch Data SIM",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                EssentialsWidgetsUpdater.requestPinWidget(
+                                    context,
+                                    NetworkSimWidgetProvider::class.java,
+                                    "Network & Data SIM Widget"
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Pin")
+                        }
+                    },
+                    onClick = {
+                        EssentialsWidgetsUpdater.requestPinWidget(
+                            context,
+                            NetworkSimWidgetProvider::class.java,
+                            "Network & Data SIM Widget"
+                        )
+                    }
+                )
+            }
+
+            item(key = "widget_animator") {
+                SettingsItem(
+                    title = "Animation Speed Widget (2×1)",
+                    icon = Icons.TwoTone.Speed,
+                    summary = "1-tap cycle between 1.0x Default, 0.5x Speed Boost, and 0.0x Off",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                EssentialsWidgetsUpdater.requestPinWidget(
+                                    context,
+                                    AnimatorWidgetProvider::class.java,
+                                    "Animation Speed Widget"
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Pin")
+                        }
+                    },
+                    onClick = {
+                        EssentialsWidgetsUpdater.requestPinWidget(
+                            context,
+                            AnimatorWidgetProvider::class.java,
+                            "Animation Speed Widget"
+                        )
+                    }
                 )
             }
 

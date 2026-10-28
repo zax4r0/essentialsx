@@ -131,6 +131,9 @@ class CaffeineWakeLockService : Service() {
     private fun updateNotification() {
         val nm = getSystemService(NotificationManager::class.java)
         nm?.notify(NOTIFICATION_ID, buildNotification())
+        if (remainingSeconds < 0 || remainingSeconds % 5 == 0 || remainingSeconds <= 10) {
+            eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater.updateAll(this)
+        }
     }
 
     private fun buildNotification(): android.app.Notification {

@@ -165,6 +165,77 @@
             </intent-filter>
         </receiver>
 
+        <!-- Home Screen Widgets (AppWidgetProviders matching Quick Settings items) -->
+        <receiver
+            android:name=".features.widgets.CaffeineWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_caffeine_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_TOGGLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_CYCLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_caffeine_info" />
+        </receiver>
+
+        <receiver
+            android:name=".features.widgets.SmartNetworkWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_smart_net_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TOGGLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TRAY" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_smart_net_info" />
+        </receiver>
+
+        <receiver
+            android:name=".features.widgets.NetworkSimWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_network_sim_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_NETWORK_DRAWER" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SIM_SWITCH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_network_sim_info" />
+        </receiver>
+
+        <receiver
+            android:name=".features.widgets.AnimatorWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_animator_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_ANIMATOR_CYCLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_animator_info" />
+        </receiver>
+
+        <receiver
+            android:name=".features.widgets.EssentialsBarWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_control_bar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_TOGGLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TOGGLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_ANIMATOR_CYCLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_control_bar_info" />
+        </receiver>
+
         <!-- Shizuku Client Provider -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

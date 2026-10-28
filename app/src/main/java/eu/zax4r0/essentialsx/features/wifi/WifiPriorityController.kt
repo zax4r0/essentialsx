@@ -177,7 +177,12 @@ object WifiPriorityController {
 
     private fun publish(snapshot: Snapshot) {
         _networks.value = applyOrder(snapshot.saved, order)
-        _inRange.value = snapshot.visible
+        // Always include the currently connected SSID as in-range even if last passive scan was >60s ago
+        _inRange.value = if (snapshot.connected != null) {
+            snapshot.visible + snapshot.connected
+        } else {
+            snapshot.visible
+        }
         _connectedSsid.value = snapshot.connected
     }
 

@@ -49,6 +49,7 @@ object CaffeineController {
         _selectedTimeout.value = minutes
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putInt(KEY_TIMEOUT, minutes).apply()
+        refreshTile(context)
     }
 
     fun toggle(context: Context) {
@@ -103,6 +104,7 @@ object CaffeineController {
                 ComponentName(context, CaffeineTileService::class.java)
             )
         }
+        eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater.updateAll(context)
     }
 
     fun formatDuration(totalSeconds: Int): String {
@@ -116,5 +118,11 @@ object CaffeineController {
         -1 -> "Infinite (∞)"
         60 -> "1 Hour"
         else -> "$minutes Minutes"
+    }
+
+    fun formatShortPreset(minutes: Int): String = when (minutes) {
+        -1 -> "∞"
+        60 -> "1h"
+        else -> "${minutes}m"
     }
 }

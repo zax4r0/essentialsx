@@ -119,5 +119,6 @@ object AnimatorController {
                 ComponentName(context, AnimatorTileService::class.java)
             )
         }
+        eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater.updateAll(context)
     }
 }
