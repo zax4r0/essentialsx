@@ -15,8 +15,8 @@ android {
         applicationId = "eu.zax4r0.essentialsx"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.2.0-beta.3"
+        versionCode = 9
+        versionName = "1.2.0-beta.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

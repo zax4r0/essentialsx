@@ -49,8 +49,8 @@ fun FloatingTabBar(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
-            modifier = Modifier.padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             tabs.forEachIndexed { index, tab ->
@@ -70,13 +70,13 @@ fun FloatingTabBar(
                         .clip(CircleShape)
                         .background(container)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) })
-                        .padding(horizontal = 15.dp, vertical = 10.dp),
+                        .padding(horizontal = if (selected) 12.dp else 10.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = if (selected) null else tab.label,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(22.dp),
                         tint = content
                     )
                     AnimatedVisibility(
@@ -86,8 +86,8 @@ fun FloatingTabBar(
                     ) {
                         Text(
                             tab.label,
-                            modifier = Modifier.padding(start = 8.dp),
-                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(start = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
                             color = content,
                             maxLines = 1
                         )

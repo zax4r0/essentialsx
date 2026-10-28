@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.AutoAwesome
 import androidx.compose.material.icons.twotone.Home
+import androidx.compose.material.icons.twotone.Settings
 import androidx.compose.material.icons.twotone.SimCard
+import androidx.compose.material.icons.twotone.Speed
 import androidx.compose.material.icons.twotone.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -35,9 +37,11 @@ fun MainScreen() {
     val tabs = remember {
         listOf(
             FloatingTab("Home", Icons.TwoTone.Home),
-            FloatingTab("SIM & eSIM", Icons.TwoTone.SimCard),
-            FloatingTab("Smart Net", Icons.TwoTone.AutoAwesome),
-            FloatingTab("Wi-Fi", Icons.TwoTone.Wifi)
+            FloatingTab("SIM", Icons.TwoTone.SimCard),
+            FloatingTab("Smart", Icons.TwoTone.AutoAwesome),
+            FloatingTab("Wi-Fi", Icons.TwoTone.Wifi),
+            FloatingTab("Animator", Icons.TwoTone.Speed),
+            FloatingTab("Settings", Icons.TwoTone.Settings)
         )
     }
 
@@ -59,7 +63,9 @@ fun MainScreen() {
             )
             1 -> SimManagerScreen(bottomInset = FloatingTabBarClearance)
             2 -> SmartNetworkScreen(bottomInset = FloatingTabBarClearance)
-            else -> WifiPriorityScreen(bottomInset = FloatingTabBarClearance)
+            3 -> WifiPriorityScreen(bottomInset = FloatingTabBarClearance)
+            4 -> AnimatorScreen(bottomInset = FloatingTabBarClearance)
+            else -> SettingsScreen(bottomInset = FloatingTabBarClearance)
         }
 
         FloatingTabBar(

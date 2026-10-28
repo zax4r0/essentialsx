@@ -120,8 +120,8 @@ object UpdateManager {
     fun getWhatsNewHighlights(version: String): List<WhatsNewItem> = listOf(
         WhatsNewItem(
             badge = "UI & Tabs",
-            title = "4-Tab Navigation & Quick Status Hub",
-            description = "Dedicated SIM & eSIM tab, Smart Net tab, Wi-Fi tab, and a 2×2 Quick Status Hub on Home for instant 1-tap navigation."
+            title = "6-Tab Floating Bar & Bento Quick Control Home",
+            description = "Dedicated tabs for Home, SIM, Smart Net, Wi-Fi, Animator & Settings (⚙️), plus Bento Action Cards on Home for 1-tap control."
         ),
         WhatsNewItem(
             badge = "Search & Filter",
