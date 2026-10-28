@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.AutoAwesome
 import androidx.compose.material.icons.twotone.Home
 import androidx.compose.material.icons.twotone.Wifi
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ fun MainScreen() {
     val tabs = remember {
         listOf(
             FloatingTab("Home", Icons.TwoTone.Home),
+            FloatingTab("Network Engine", Icons.TwoTone.AutoAwesome),
             FloatingTab("Wi-Fi", Icons.TwoTone.Wifi)
         )
     }
@@ -33,6 +35,7 @@ fun MainScreen() {
     Box(Modifier.fillMaxSize()) {
         when (selectedTab) {
             0 -> HomeScreen(bottomInset = FloatingTabBarClearance)
+            1 -> SmartNetworkScreen(bottomInset = FloatingTabBarClearance)
             else -> WifiPriorityScreen(bottomInset = FloatingTabBarClearance)
         }
 

@@ -15,8 +15,8 @@ android {
         applicationId = "eu.zax4r0.essentialsx"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0-beta.1"
+        versionCode = 3
+        versionName = "1.1.0-beta.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -98,6 +98,5 @@ dependencies {
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
     testImplementation("junit:junit:4.13.2")
-
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

@@ -11,6 +11,8 @@
     <!-- Network Switch & Custom Animator permissions -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <!-- Wi-Fi Priority permissions -->
@@ -95,6 +97,41 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.EssentialsX.Translucent" />
+
+        <!-- Smart Network Background Engine Service -->
+        <service
+            android:name=".features.smartnet.SmartNetworkService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Low-power cellular SINR/RSRQ and Wi-Fi quality monitoring for automatic 5G/4G, Dual-SIM, and Wi-Fi/Data switching" />
+        </service>
+
+        <!-- Quick Settings Tile: Smart Network Switch -->
+        <service
+            android:name=".features.smartnet.SmartNetworkTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_smart_network"
+            android:label="@string/tile_smart_network"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Smart Network Bottom Drawer Tray (Launched on QS Tile Long-Press or Drawer Variant Tap) -->
+        <activity
+            android:name=".features.smartnet.SmartNetworkDrawerActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.EssentialsX.Translucent">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity>
 
         <!-- Quick Settings Tile: Custom Animator -->
         <service

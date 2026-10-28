@@ -34,6 +34,8 @@ import eu.zax4r0.essentialsx.features.caffeine.CaffeineTileService
 import eu.zax4r0.essentialsx.features.network.DataSimTileService
 import eu.zax4r0.essentialsx.features.network.NetworkModeController
 import eu.zax4r0.essentialsx.features.network.NetworkModeTileService
+import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkController
+import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkTileService
 import eu.zax4r0.essentialsx.ui.AboutDialog
 import eu.zax4r0.essentialsx.ui.ChoiceDialog
 import eu.zax4r0.essentialsx.ui.PorterScaffold
@@ -68,6 +70,7 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
     // Network states
     val sims by NetworkModeController.sims.collectAsState()
     val isNetworkLoading by NetworkModeController.isLoading.collectAsState()
+    var showSmartNetTileDialog by remember { mutableStateOf(false) }
 
     // Animator states
     val windowScale by AnimatorController.windowScale.collectAsState()
@@ -163,6 +166,23 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
                 }
                 val label = if (idx == 0) "Network Mode" else "Data SIM"
                 addTile(targetService, label, R.drawable.ic_signal_cellular)
+            }
+        )
+    }
+
+    if (showSmartNetTileDialog) {
+        val modes = SmartNetworkController.TileClickMode.entries
+        val choices = modes.map { it.displayName }
+        val selectedIdx = modes.indexOf(SmartNetworkController.tileClickMode.value).coerceAtLeast(0)
+        ChoiceDialog(
+            title = "Choose Smart Network Tile Behavior",
+            choices = choices,
+            selected = selectedIdx,
+            onDismiss = { showSmartNetTileDialog = false },
+            onSelect = { idx ->
+                showSmartNetTileDialog = false
+                SmartNetworkController.setTileClickMode(context, modes[idx])
+                addTile(SmartNetworkTileService::class.java, "Smart Network", R.drawable.ic_smart_network)
             }
         )
     }
@@ -495,6 +515,23 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
                         }
                     },
                     onClick = { showCaffeineVariantDialog = true }
+                )
+            }
+
+            item {
+                SettingsItem(
+                    title = "Smart Network Tile",
+                    icon = Icons.TwoTone.AutoAwesome,
+                    summary = "Tap to toggle or open tray • Hold tile to open Smart Wi-Fi/Data/5G Tray",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = { showSmartNetTileDialog = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Add")
+                        }
+                    },
+                    onClick = { showSmartNetTileDialog = true }
                 )
             }
 

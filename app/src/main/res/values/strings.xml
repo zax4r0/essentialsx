@@ -5,7 +5,23 @@
     <!-- Tiles -->
     <string name="tile_caffeine">Caffeine</string>
     <string name="tile_network_switch">Network Mode</string>
+    <string name="tile_smart_network">Smart Network</string>
     <string name="tile_custom_animator">Animator</string>
+
+    <!-- Smart Network Engine -->
+    <string name="smart_net_title">Smart Network Engine</string>
+    <string name="smart_net_master_title">Smart Network Auto-Switcher</string>
+    <string name="smart_net_master_summary_off">Disabled • Tap to monitor SINR/RSRQ quality and auto-switch Wi-Fi, 5G/4G &amp; Data SIM</string>
+    <string name="smart_net_wifi_data_title">Smart Wi-Fi &amp; Mobile Data Switch</string>
+    <string name="smart_net_wifi_data_summary">Prefer Wi-Fi when healthy; switch to Mobile Data when Wi-Fi is weak or stalled</string>
+    <string name="smart_net_5g_4g_title">Smart 5G / 4G Quality Switch</string>
+    <string name="smart_net_5g_4g_summary">Drop to 4G Only when 5G SINR/RSRQ is congested; auto-recover to 5G when signal clears</string>
+    <string name="smart_net_dual_sim_title">Smart Dual-SIM Data Switch</string>
+    <string name="smart_net_dual_sim_summary">Auto-switch default mobile data to the SIM with better composite signal quality</string>
+    <string name="smart_net_sensitivity_title">Switching Sensitivity</string>
+    <string name="smart_net_notif_channel">Smart Network Engine</string>
+    <string name="smart_net_notif_title">Smart Network Engine Active</string>
+    <string name="smart_net_notif_stop">Turn Off</string>
 
     <!-- Caffeine -->
     <string name="caffeine_title">Caffeine</string>
