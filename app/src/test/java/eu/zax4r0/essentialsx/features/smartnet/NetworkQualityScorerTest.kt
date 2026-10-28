@@ -315,4 +315,97 @@ class NetworkQualityScorerTest {
             )
         )
     }
+
+    @Test
+    fun `HTTP 204 validator rejects carrier captive portal 200 and 302 redirects on expired data pack`() {
+        assertEquals(true, NetworkQualityScorer.isGenuineHttp204Response(204))
+        // Carrier recharge portals return 200 OK (HTML page) or 302/307 Redirect
+        assertEquals(false, NetworkQualityScorer.isGenuineHttp204Response(200))
+        assertEquals(false, NetworkQualityScorer.isGenuineHttp204Response(302))
+        assertEquals(false, NetworkQualityScorer.isGenuineHttp204Response(307))
+        assertEquals(false, NetworkQualityScorer.isGenuineHttp204Response(-1))
+    }
+
+    @Test
+    fun `SIM with 5-bar signal but expired data pack (probe failures) is hard-capped below switch threshold`() {
+        // Full 5-bar 5G signal (-75 dBm RSRP, -7 dB RSRQ, +18 dB SINR), but HTTP 204 probe failed twice (expired data pack)
+        val expiredDataPackScore = NetworkQualityScorer.computeCellularRawScore(
+            rsrpDbm = -75,
+            rsrqDb = -7,
+            sinrDb = 18,
+            fallbackLevel = 4,
+            is5g = true,
+            isValidated = true,
+            latencyMs = -1,
+            consecutiveProbeFailures = 2
+        )
+
+        assertTrue(
+            "SIM with expired data pack ($expiredDataPackScore) must be capped <= 15 despite 5-bar signal",
+            expiredDataPackScore <= 15
+        )
+    }
+
+    @Test
+    fun `quarantined SIM with expired data pack is blocked from being selected as switch target`() {
+        val preset = SmartNetworkController.SensitivityPreset.BALANCED
+
+        // Candidate SIM has 88 RF score, but is quarantined until t=500_000L due to expired data pack
+        val blockedByQuarantine = NetworkQualityScorer.shouldSwitchDataSim(
+            currentSimScore = 30,
+            candidateSimScore = 88,
+            consecutiveCandidateBetterSamples = 4,
+            inVoiceCall = false,
+            nowMs = 200_000L,
+            lastSimSwitchMs = 0L,
+            preset = preset,
+            candidateQuarantineUntilMs = 500_000L
+        )
+        assertEquals(false, blockedByQuarantine)
+
+        // Once quarantine expires (nowMs = 600_000L >= 500_000L), candidate SIM can be tried again
+        val allowedAfterQuarantine = NetworkQualityScorer.shouldSwitchDataSim(
+            currentSimScore = 30,
+            candidateSimScore = 88,
+            consecutiveCandidateBetterSamples = 4,
+            inVoiceCall = false,
+            nowMs = 600_000L,
+            lastSimSwitchMs = 0L,
+            preset = preset,
+            candidateQuarantineUntilMs = 500_000L
+        )
+        assertEquals(true, allowedAfterQuarantine)
+    }
+
+    @Test
+    fun `post-switch verification rolls back if new SIM has expired data pack and quarantines dead SIM`() {
+        // Case 1: Switched from working SIM 1 (weak signal) to SIM 2, but SIM 2 has NO internet (expired pack)
+        // -> Immediately roll back to SIM 1 and quarantine SIM 2!
+        assertEquals(
+            NetworkQualityScorer.PostSwitchVerdict.ROLLBACK_AND_QUARANTINE_NEW_SIM,
+            NetworkQualityScorer.evaluatePostSwitchVerification(
+                previousSimHadInternet = true,
+                newSimHasInternet = false
+            )
+        )
+
+        // Case 2: Switched from SIM 1 (whose data pack expired) to SIM 2, and SIM 2 HAS working internet
+        // -> Confirm switch and quarantine SIM 1 so we don't switch back to SIM 1's 5-bar dead tower!
+        assertEquals(
+            NetworkQualityScorer.PostSwitchVerdict.CONFIRM_AND_QUARANTINE_PREVIOUS_SIM,
+            NetworkQualityScorer.evaluatePostSwitchVerification(
+                previousSimHadInternet = false,
+                newSimHasInternet = true
+            )
+        )
+
+        // Case 3: Normal signal quality switch where both SIMs have working internet
+        assertEquals(
+            NetworkQualityScorer.PostSwitchVerdict.CONFIRM_SWITCH,
+            NetworkQualityScorer.evaluatePostSwitchVerification(
+                previousSimHadInternet = true,
+                newSimHasInternet = true
+            )
+        )
+    }
 }

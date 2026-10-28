@@ -28,27 +28,36 @@ object NetworkQualityScorer {
         PROBE_WIFI_RECOVERY
     }
 
+    enum class PostSwitchVerdict {
+        CONFIRM_SWITCH,
+        CONFIRM_AND_QUARANTINE_PREVIOUS_SIM,
+        ROLLBACK_AND_QUARANTINE_NEW_SIM,
+        QUARANTINE_BOTH_AND_HOLD
+    }
+
     data class SimQualitySnapshot(
         val subId: Int,
         val slotIndex: Int,
         val displayName: String,
         val isDefaultData: Boolean,
-        val ratLabel: String,      // "5G NR", "4G LTE", "3G", "2G"
+        val ratLabel: String,          // "5G NR", "4G LTE", "3G", "2G"
         val is5gActive: Boolean,
-        val rsrpDbm: Int?,         // e.g. -88 dBm
-        val rsrqDb: Int?,          // e.g. -9 dB
-        val sinrDb: Int?,          // e.g. +14 dB
-        val signalLevel: Int,      // 0..4
-        val latencyMs: Int?,       // null if not probed, -1 if timeout
-        val rawScore: Int,         // 0..100
-        val emaScore: Int,         // 0..100 smoothed
-        val grade: String          // "Excellent", "Good", "Fair", "Congested", "Poor"
+        val rsrpDbm: Int?,             // e.g. -88 dBm
+        val rsrqDb: Int?,              // e.g. -9 dB
+        val sinrDb: Int?,              // e.g. +14 dB
+        val signalLevel: Int,          // 0..4
+        val latencyMs: Int?,           // null if not probed, -1 if timeout/captive portal
+        val hasInternet: Boolean = true,
+        val isQuarantined: Boolean = false,
+        val rawScore: Int,             // 0..100
+        val emaScore: Int,             // 0..100 smoothed
+        val grade: String              // "Excellent", "Good", "Fair", "Congested", "Poor", "No Internet"
     )
 
     data class WifiQualitySnapshot(
         val isConnected: Boolean,
-        val rssiDbm: Int,          // e.g. -62 dBm
-        val linkSpeedMbps: Int,    // e.g. 433 Mbps
+        val rssiDbm: Int,              // e.g. -62 dBm
+        val linkSpeedMbps: Int,        // e.g. 433 Mbps
         val isValidated: Boolean,
         val latencyMs: Int?,
         val rawScore: Int,
@@ -65,6 +74,14 @@ object NetworkQualityScorer {
     )
 
     /**
+     * Strictly verifies that the HTTP probe returned genuine 204 No Content.
+     * Carrier recharge captive portals on expired data packs return 200 OK (HTML) or 302/307 Redirect.
+     */
+    fun isGenuineHttp204Response(responseCode: Int): Boolean {
+        return responseCode == HttpURLConnection.HTTP_NO_CONTENT
+    }
+
+    /**
      * Computes the composite RF & Link Health score [0..100] for a cellular connection.
      *
      * Weights:
@@ -72,8 +89,8 @@ object NetworkQualityScorer {
      * - RSRQ (35%): [-19 dB -> 0, -6 dB -> 100]
      * - RSRP (20%): [-120 dBm -> 0, -75 dBm -> 100]
      *
-     * This ensures strong-RSRP but congested/interfered towers ("Fake 5G") score low,
-     * while clean moderate-RSRP towers with high SINR/RSRQ score high.
+     * If [consecutiveProbeFailures] >= 2 (or unvalidated + failed probe), hard-caps score <= 12
+     * so a 5-bar SIM with an expired data pack immediately triggers failover to the other SIM.
      */
     fun computeCellularRawScore(
         rsrpDbm: Int?,
@@ -82,8 +99,14 @@ object NetworkQualityScorer {
         fallbackLevel: Int,
         is5g: Boolean,
         isValidated: Boolean,
-        latencyMs: Int?
+        latencyMs: Int?,
+        consecutiveProbeFailures: Int = 0
     ): Int {
+        // Hard-cap if data pack is expired / internet probe failed consecutively
+        if (consecutiveProbeFailures >= 2) {
+            return 12
+        }
+
         val rsrpNorm = rsrpDbm?.let { normalizeLinear(it.toDouble(), -120.0, -75.0) }
             ?: normalizeLinear(fallbackLevel.toDouble(), 0.0, 4.0)
 
@@ -106,7 +129,7 @@ object NetworkQualityScorer {
         }
         if (latencyMs != null) {
             when {
-                latencyMs < 0 -> composite -= 18.0       // Probe timeout / packet loss
+                latencyMs < 0 -> composite -= 22.0       // Probe timeout / captive portal redirect
                 latencyMs <= 75 -> composite += 6.0      // Snappy low-latency bearer
                 latencyMs in 450..800 -> composite -= 16.0
                 latencyMs > 800 -> composite -= 25.0
@@ -118,11 +141,6 @@ object NetworkQualityScorer {
 
     /**
      * Computes the composite Wi-Fi quality score [0..100].
-     *
-     * Weights:
-     * - RSSI (45%): [-90 dBm -> 0, -55 dBm -> 100]
-     * - Link Speed (25%): [1 Mbps -> 0, 150 Mbps -> 100]
-     * - Validation & Latency (30%): [Validated + low RTT -> 100, unvalidated/timeout -> 0]
      */
     fun computeWifiRawScore(
         rssiDbm: Int,
@@ -164,7 +182,9 @@ object NetworkQualityScorer {
         return smoothed.roundToInt().coerceIn(0, 100)
     }
 
-    fun scoreToGrade(score: Int): String = when {
+    fun scoreToGrade(score: Int, hasInternet: Boolean = true, isQuarantined: Boolean = false): String = when {
+        !hasInternet -> "No Internet"
+        isQuarantined -> "Pack Expired"
         score >= 80 -> "Excellent"
         score >= 62 -> "Good"
         score >= 42 -> "Fair"
@@ -209,7 +229,7 @@ object NetworkQualityScorer {
 
     /**
      * Pure decision function for Smart Dual-SIM default data switching with hysteresis,
-     * debounce, call-safety, and cooldown.
+     * debounce, call-safety, cooldown, and expired-data-pack quarantine check.
      */
     fun shouldSwitchDataSim(
         currentSimScore: Int,
@@ -218,9 +238,11 @@ object NetworkQualityScorer {
         inVoiceCall: Boolean,
         nowMs: Long,
         lastSimSwitchMs: Long,
-        preset: SmartNetworkController.SensitivityPreset
+        preset: SmartNetworkController.SensitivityPreset,
+        candidateQuarantineUntilMs: Long = 0L
     ): Boolean {
         if (inVoiceCall) return false
+        if (nowMs < candidateQuarantineUntilMs) return false
         if (nowMs - lastSimSwitchMs < preset.simCooldownMs) return false
         if (currentSimScore >= preset.simLowThreshold) return false
         if (candidateSimScore < currentSimScore + preset.simHysteresisDelta) return false
@@ -229,8 +251,27 @@ object NetworkQualityScorer {
     }
 
     /**
+     * Evaluates the outcome after switching default mobile data from one SIM to another
+     * and running an immediate HTTP 204 internet check on the newly active SIM.
+     */
+    fun evaluatePostSwitchVerification(
+        previousSimHadInternet: Boolean,
+        newSimHasInternet: Boolean
+    ): PostSwitchVerdict {
+        return when {
+            previousSimHadInternet && !newSimHasInternet ->
+                PostSwitchVerdict.ROLLBACK_AND_QUARANTINE_NEW_SIM
+            !previousSimHadInternet && newSimHasInternet ->
+                PostSwitchVerdict.CONFIRM_AND_QUARANTINE_PREVIOUS_SIM
+            !previousSimHadInternet && !newSimHasInternet ->
+                PostSwitchVerdict.QUARANTINE_BOTH_AND_HOLD
+            else ->
+                PostSwitchVerdict.CONFIRM_SWITCH
+        }
+    }
+
+    /**
      * Pure decision function for Smart Wi-Fi <-> Mobile Data switching.
-     * Respects user's preference to stay on Wi-Fi whenever Wi-Fi is usable.
      */
     fun evaluateWifiDataAction(
         isWifiConnected: Boolean,
@@ -324,8 +365,9 @@ object NetworkQualityScorer {
     }
 
     /**
-     * Lightweight HTTP 204 micro-probe (< 200 bytes) over a specific [Network] to detect dead backhaul or high RTT.
-     * Returns RTT in milliseconds, or -1 on timeout/failure.
+     * Lightweight HTTP 204 micro-probe (< 200 bytes) over a specific [Network] to detect dead backhaul,
+     * expired data packs (captive portal 200/302 redirects), or high RTT.
+     * Returns RTT in milliseconds only when genuine HTTP 204 No Content is received, or -1 otherwise.
      */
     fun measureHttp204LatencyMs(network: Network?, timeoutMs: Int = 1500): Int {
         return try {
@@ -341,7 +383,7 @@ object NetworkQualityScorer {
             try {
                 val code = conn.responseCode
                 val elapsedMs = ((System.nanoTime() - start) / 1_000_000L).toInt()
-                if (code in 200..399) elapsedMs.coerceAtLeast(1) else -1
+                if (isGenuineHttp204Response(code)) elapsedMs.coerceAtLeast(1) else -1
             } finally {
                 conn.disconnect()
             }

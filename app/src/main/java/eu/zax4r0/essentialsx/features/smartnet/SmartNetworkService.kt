@@ -13,6 +13,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.TelephonyNetworkSpecifier
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -30,12 +31,14 @@ import eu.zax4r0.essentialsx.MainActivity
 import eu.zax4r0.essentialsx.R
 import eu.zax4r0.essentialsx.features.network.NetworkModeController
 import eu.zax4r0.essentialsx.utils.ShizukuHelper
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 class SmartNetworkService : Service() {
@@ -51,6 +54,8 @@ class SmartNetworkService : Service() {
     private val latest5gDisplayMap = ConcurrentHashMap<Int, Boolean>()
     private val simEmaScores = ConcurrentHashMap<Int, Int>()
     private val simLatencyCache = ConcurrentHashMap<Int, Pair<Long, Int>>() // subId -> (timestampMs, rttMs)
+    private val simProbeFailuresMap = ConcurrentHashMap<Int, Int>()         // subId -> consecutive HTTP 204 failures
+    private val simQuarantineUntilMsMap = ConcurrentHashMap<Int, Long>()    // subId -> quarantine expiry timestamp
 
     // 5G/4G state tracking per subId
     private val consecutivePoor5gMap = ConcurrentHashMap<Int, Int>()
@@ -58,10 +63,11 @@ class SmartNetworkService : Service() {
     private val next5gProbeEligibleMsMap = ConcurrentHashMap<Int, Long>()
     private val backoffStep5gMap = ConcurrentHashMap<Int, Int>()
 
-    // Dual-SIM hysteresis state
+    // Dual-SIM hysteresis & post-switch verification state
     private var consecutiveCandidateBetterCount = 0
     private var lastCandidateSubId = -1
     private var lastSimSwitchMs = 0L
+    private var isVerifyingSimSwitch = false
 
     // Wi-Fi <-> Mobile Data state
     private var wifiEmaScore: Int? = null
@@ -200,7 +206,6 @@ class SmartNetworkService : Service() {
 
         for (sim in activeSims) {
             val subTm = baseTm.createForSubscriptionId(sim.subId)
-            // Seed initial signal strength immediately
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 subTm.signalStrength?.let { latestSignalMap[sim.subId] = it }
             }
@@ -245,12 +250,14 @@ class SmartNetworkService : Service() {
     @Suppress("DEPRECATION")
     private fun registerListenerLegacy(subId: Int, subTm: TelephonyManager) {
         val listener = object : PhoneStateListener() {
+            @Deprecated("Deprecated in Java")
             override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
                 if (signalStrength != null) {
                     latestSignalMap[subId] = signalStrength
                 }
             }
 
+            @Deprecated("Deprecated in Java")
             override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                 inVoiceCall = (state != TelephonyManager.CALL_STATE_IDLE)
             }
@@ -279,6 +286,7 @@ class SmartNetworkService : Service() {
     }
 
     private suspend fun evaluateAllNetworks() {
+        if (isVerifyingSimSwitch) return
         val nowMs = System.currentTimeMillis()
         val preset = SmartNetworkController.sensitivityPreset.value
         val cm = getSystemService(ConnectivityManager::class.java)
@@ -297,7 +305,7 @@ class SmartNetworkService : Service() {
             null
         }
 
-        // 2. Evaluate Active Cellular SIMs
+        // 2. Evaluate Active Cellular SIMs (RF + Data Pack / HTTP 204 Internet Verification)
         val activeSims = NetworkModeController.sims.value.filter { it.isActive && it.slotIndex >= 0 }
         val simSnapshots = LinkedHashMap<Int, NetworkQualityScorer.SimQualitySnapshot>()
 
@@ -312,29 +320,37 @@ class SmartNetworkService : Service() {
             val rf = NetworkQualityScorer.extractSignalMetrics(sig, is5gDisplay)
             val is5g = rf.isNrSignal || sim.currentMode == NetworkModeController.NetworkMode.MODE_NR_ONLY
 
-            // Only run lightweight HTTP 204 probe on the default data SIM when not on Wi-Fi and RF is borderline
-            val prelimScore = NetworkQualityScorer.computeCellularRawScore(
-                rsrpDbm = rf.rsrpDbm,
-                rsrqDb = rf.rsrqDb,
-                sinrDb = rf.sinrDb,
-                fallbackLevel = rf.level,
-                is5g = is5g,
-                isValidated = if (sim.isDefaultData && !isWifiActive) isActiveNetworkValidated else true,
-                latencyMs = null
-            )
-
-            val latencyMs = if (sim.isDefaultData && !isWifiActive && isScreenOn && (prelimScore in 25..58 || !isActiveNetworkValidated)) {
+            // Lightweight HTTP 204 heartbeat on the active Data SIM when on Mobile Data & Screen ON:
+            // Detects expired data packs (captive portal 200/302 or blackholed packets) even on 5-bar 5G!
+            val latencyMs = if (sim.isDefaultData && !isWifiActive && isScreenOn) {
                 val cached = simLatencyCache[sim.subId]
-                if (cached != null && nowMs - cached.first < PROBE_CACHE_TTL_MS) {
+                val cacheTtl = if ((simProbeFailuresMap[sim.subId] ?: 0) > 0 || !isActiveNetworkValidated) {
+                    10_000L // Fast re-check if previous probe failed or unvalidated
+                } else {
+                    PROBE_CACHE_TTL_MS // 36s low-power heartbeat when healthy
+                }
+                if (cached != null && nowMs - cached.first < cacheTtl) {
                     cached.second
                 } else {
-                    val measured = NetworkQualityScorer.measureHttp204LatencyMs(activeNetwork)
+                    val measured = probeWithSingleRetry(activeNetwork)
                     simLatencyCache[sim.subId] = Pair(nowMs, measured)
+                    if (measured < 0) {
+                        val fails = (simProbeFailuresMap[sim.subId] ?: 0) + 1
+                        simProbeFailuresMap[sim.subId] = fails
+                    } else {
+                        simProbeFailuresMap[sim.subId] = 0
+                        simQuarantineUntilMsMap.remove(sim.subId)
+                    }
                     measured
                 }
             } else {
                 simLatencyCache[sim.subId]?.takeIf { nowMs - it.first < PROBE_CACHE_TTL_MS }?.second
             }
+
+            val probeFailures = simProbeFailuresMap[sim.subId] ?: 0
+            val quarantineUntil = simQuarantineUntilMsMap[sim.subId] ?: 0L
+            val isQuarantined = nowMs < quarantineUntil
+            val hasInternet = probeFailures < 2 && !isQuarantined
 
             val rawScore = NetworkQualityScorer.computeCellularRawScore(
                 rsrpDbm = rf.rsrpDbm,
@@ -343,10 +359,16 @@ class SmartNetworkService : Service() {
                 fallbackLevel = rf.level,
                 is5g = is5g,
                 isValidated = if (sim.isDefaultData && !isWifiActive) isActiveNetworkValidated else true,
-                latencyMs = latencyMs
+                latencyMs = latencyMs,
+                consecutiveProbeFailures = if (isQuarantined) 2 else probeFailures
             )
 
-            val ema = NetworkQualityScorer.computeEmaScore(simEmaScores[sim.subId], rawScore)
+            // If internet is dead (data pack expired), bypass slow EMA decay and drop score immediately
+            val ema = if (!hasInternet) {
+                rawScore
+            } else {
+                NetworkQualityScorer.computeEmaScore(simEmaScores[sim.subId], rawScore)
+            }
             simEmaScores[sim.subId] = ema
 
             val ratLabel = when {
@@ -367,13 +389,17 @@ class SmartNetworkService : Service() {
                 sinrDb = rf.sinrDb,
                 signalLevel = rf.level,
                 latencyMs = latencyMs,
+                hasInternet = hasInternet,
+                isQuarantined = isQuarantined,
                 rawScore = rawScore,
                 emaScore = ema,
-                grade = NetworkQualityScorer.scoreToGrade(ema)
+                grade = NetworkQualityScorer.scoreToGrade(ema, hasInternet = hasInternet, isQuarantined = isQuarantined)
             )
         }
 
-        val bestSimSnap = simSnapshots.values.maxByOrNull { it.emaScore }
+        val bestSimSnap = simSnapshots.values
+            .filter { !it.isQuarantined }
+            .maxByOrNull { it.emaScore } ?: simSnapshots.values.maxByOrNull { it.emaScore }
         val defaultSimSnap = simSnapshots.values.firstOrNull { it.isDefaultData } ?: bestSimSnap
 
         // 3. Smart Wi-Fi <-> Mobile Data Switching
@@ -446,7 +472,8 @@ class SmartNetworkService : Service() {
         }
 
         // 4. Smart 5G <-> 4G Quality Switching on Default Data SIM
-        if (SmartNetworkController.auto5g4gEnabled.value && defaultSimSnap != null) {
+        // Note: Only downgrade 5G->4G if the issue is RF quality, not an expired data pack on clean 5G
+        if (SmartNetworkController.auto5g4gEnabled.value && defaultSimSnap != null && defaultSimSnap.hasInternet) {
             val targetSimInfo = activeSims.firstOrNull { it.subId == defaultSimSnap.subId }
             if (targetSimInfo != null) {
                 val subId = defaultSimSnap.subId
@@ -504,14 +531,19 @@ class SmartNetworkService : Service() {
             }
         }
 
-        // 5. Smart Dual-SIM Default Data Switching
+        // 5. Smart Dual-SIM Default Data Switching (with Pre-Switch Probe + Post-Switch Verification & Quarantine)
         if (SmartNetworkController.autoSimSwitchEnabled.value && activeSims.size >= 2 && defaultSimSnap != null) {
             val candidateSnap = simSnapshots.values
                 .filter { it.subId != defaultSimSnap.subId }
                 .maxByOrNull { it.emaScore }
 
             if (candidateSnap != null) {
-                if (candidateSnap.emaScore >= defaultSimSnap.emaScore + preset.simHysteresisDelta) {
+                val candidateQuarantineUntil = simQuarantineUntilMsMap[candidateSnap.subId] ?: 0L
+
+                // If current SIM has NO internet (expired data pack), fast-track switch without waiting 3 ticks!
+                if (!defaultSimSnap.hasInternet && nowMs >= candidateQuarantineUntil) {
+                    consecutiveCandidateBetterCount = preset.simSamplesRequired
+                } else if (candidateSnap.emaScore >= defaultSimSnap.emaScore + preset.simHysteresisDelta) {
                     if (lastCandidateSubId == candidateSnap.subId) {
                         consecutiveCandidateBetterCount++
                     } else {
@@ -529,16 +561,14 @@ class SmartNetworkService : Service() {
                     inVoiceCall = inVoiceCall,
                     nowMs = nowMs,
                     lastSimSwitchMs = lastSimSwitchMs,
-                    preset = preset
+                    preset = preset,
+                    candidateQuarantineUntilMs = candidateQuarantineUntil
                 )
 
                 if (shouldSwitch) {
                     consecutiveCandidateBetterCount = 0
-                    lastSimSwitchMs = nowMs
-                    NetworkModeController.setDefaultDataSubId(this, candidateSnap.subId)
-                    SmartNetworkController.recordAction(
-                        "Switched Data SIM to ${candidateSnap.displayName} (Score ${candidateSnap.emaScore} vs ${defaultSimSnap.displayName} ${defaultSimSnap.emaScore})"
-                    )
+                    performVerifiedSimSwitch(defaultSimSnap, candidateSnap, nowMs)
+                    return
                 }
             }
         }
@@ -552,6 +582,146 @@ class SmartNetworkService : Service() {
         SmartNetworkController.updateSnapshots(wifiSnap, simSnapshots, statusSummary)
         updateNotification(statusSummary)
         SmartNetworkController.refreshTile(this)
+    }
+
+    /**
+     * Switches default mobile data to [candidateSnap], attempting a pre-switch network probe first (on DSDA devices),
+     * followed by an immediate post-switch HTTP 204 verification and automatic rollback if the candidate SIM's
+     * data pack is expired!
+     */
+    private suspend fun performVerifiedSimSwitch(
+        previousSimSnap: NetworkQualityScorer.SimQualitySnapshot,
+        candidateSnap: NetworkQualityScorer.SimQualitySnapshot,
+        nowMs: Long
+    ) {
+        isVerifyingSimSwitch = true
+        try {
+            // Step A: Try pre-switch probe via TelephonyNetworkSpecifier (works on DSDA devices without switching default SIM)
+            val preProbeResult = tryPreSwitchProbeOnCandidate(candidateSnap.subId)
+            if (preProbeResult == PreProbeStatus.CONFIRMED_NO_INTERNET) {
+                simQuarantineUntilMsMap[candidateSnap.subId] = nowMs + SIM_NO_DATA_QUARANTINE_MS
+                simProbeFailuresMap[candidateSnap.subId] = 2
+                SmartNetworkController.recordAction(
+                    "Blocked switch to ${candidateSnap.displayName} (Pre-switch ping failed: data pack expired • Quarantined 20m)"
+                )
+                return
+            }
+
+            // Step B: Perform the switch to candidate SIM
+            lastSimSwitchMs = nowMs
+            NetworkModeController.setDefaultDataSubId(this, candidateSnap.subId)
+            SmartNetworkController.recordAction(
+                "Switching Data to ${candidateSnap.displayName} • Verifying internet..."
+            )
+
+            // Wait up to 6s for candidate SIM's PDN data bearer to attach
+            delay(6_000L)
+
+            val cm = getSystemService(ConnectivityManager::class.java)
+            val activeNet = cm?.activeNetwork
+            val rtt = probeWithSingleRetry(activeNet)
+            val newSimHasInternet = (rtt > 0)
+
+            val verdict = NetworkQualityScorer.evaluatePostSwitchVerification(
+                previousSimHadInternet = previousSimSnap.hasInternet,
+                newSimHasInternet = newSimHasInternet
+            )
+
+            val verifyTimeMs = System.currentTimeMillis()
+            when (verdict) {
+                NetworkQualityScorer.PostSwitchVerdict.ROLLBACK_AND_QUARANTINE_NEW_SIM -> {
+                    // Candidate SIM's data pack is expired! Roll back to previous SIM immediately and quarantine candidate
+                    simQuarantineUntilMsMap[candidateSnap.subId] = verifyTimeMs + SIM_NO_DATA_QUARANTINE_MS
+                    simProbeFailuresMap[candidateSnap.subId] = 2
+                    NetworkModeController.setDefaultDataSubId(this, previousSimSnap.subId)
+                    SmartNetworkController.recordAction(
+                        "Rolled back to ${previousSimSnap.displayName} (${candidateSnap.displayName} has no internet / pack expired • Quarantined 20m)"
+                    )
+                }
+                NetworkQualityScorer.PostSwitchVerdict.CONFIRM_AND_QUARANTINE_PREVIOUS_SIM -> {
+                    // Previous SIM had expired data pack and new SIM has working internet -> quarantine previous SIM!
+                    simQuarantineUntilMsMap[previousSimSnap.subId] = verifyTimeMs + SIM_NO_DATA_QUARANTINE_MS
+                    simProbeFailuresMap[candidateSnap.subId] = 0
+                    simLatencyCache[candidateSnap.subId] = Pair(verifyTimeMs, rtt)
+                    SmartNetworkController.recordAction(
+                        "Switched to ${candidateSnap.displayName} (${rtt}ms ping OK • Quarantined expired ${previousSimSnap.displayName} for 20m)"
+                    )
+                }
+                NetworkQualityScorer.PostSwitchVerdict.QUARANTINE_BOTH_AND_HOLD -> {
+                    simQuarantineUntilMsMap[previousSimSnap.subId] = verifyTimeMs + SIM_NO_DATA_QUARANTINE_MS
+                    simQuarantineUntilMsMap[candidateSnap.subId] = verifyTimeMs + SIM_NO_DATA_QUARANTINE_MS
+                    SmartNetworkController.recordAction(
+                        "Warning: Both ${previousSimSnap.displayName} and ${candidateSnap.displayName} failed HTTP 204 internet check"
+                    )
+                }
+                NetworkQualityScorer.PostSwitchVerdict.CONFIRM_SWITCH -> {
+                    simProbeFailuresMap[candidateSnap.subId] = 0
+                    simLatencyCache[candidateSnap.subId] = Pair(verifyTimeMs, rtt)
+                    SmartNetworkController.recordAction(
+                        "Switched Data SIM to ${candidateSnap.displayName} (Verified ${rtt}ms ping • Score ${candidateSnap.emaScore} vs ${previousSimSnap.emaScore})"
+                    )
+                }
+            }
+        } finally {
+            isVerifyingSimSwitch = false
+        }
+    }
+
+    private enum class PreProbeStatus {
+        CONFIRMED_HAS_INTERNET,
+        CONFIRMED_NO_INTERNET,
+        UNSUPPORTED_ON_DSDS
+    }
+
+    /**
+     * Attempts to request a temporary cellular [Network] bound to [candidateSubId] before switching.
+     * On DSDA devices where the secondary SIM can open a data bearer simultaneously, this verifies
+     * internet before switching; on single-radio DSDS devices where the request times out, returns
+     * [PreProbeStatus.UNSUPPORTED_ON_DSDS] so post-switch verification handles it.
+     */
+    private suspend fun tryPreSwitchProbeOnCandidate(candidateSubId: Int): PreProbeStatus {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return PreProbeStatus.UNSUPPORTED_ON_DSDS
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return PreProbeStatus.UNSUPPORTED_ON_DSDS
+
+        val deferredNet = CompletableDeferred<Network?>()
+        val specifier = TelephonyNetworkSpecifier.Builder()
+            .setSubscriptionId(candidateSubId)
+            .build()
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .setNetworkSpecifier(specifier)
+            .build()
+
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                deferredNet.complete(network)
+            }
+
+            override fun onUnavailable() {
+                deferredNet.complete(null)
+            }
+        }
+
+        return try {
+            cm.requestNetwork(request, cb, mainHandler, 2200)
+            val candidateNet = withTimeoutOrNull(2400L) { deferredNet.await() }
+                ?: return PreProbeStatus.UNSUPPORTED_ON_DSDS
+
+            val rtt = NetworkQualityScorer.measureHttp204LatencyMs(candidateNet, timeoutMs = 1500)
+            if (rtt > 0) PreProbeStatus.CONFIRMED_HAS_INTERNET else PreProbeStatus.CONFIRMED_NO_INTERNET
+        } catch (_: Exception) {
+            PreProbeStatus.UNSUPPORTED_ON_DSDS
+        } finally {
+            runCatching { cm.unregisterNetworkCallback(cb) }
+        }
+    }
+
+    private suspend fun probeWithSingleRetry(network: Network?): Int {
+        val first = NetworkQualityScorer.measureHttp204LatencyMs(network, timeoutMs = 1500)
+        if (first > 0) return first
+        delay(1200L)
+        return NetworkQualityScorer.measureHttp204LatencyMs(network, timeoutMs = 1800)
     }
 
     private fun evaluateWifiSnapshot(
@@ -624,7 +794,6 @@ class SmartNetworkService : Service() {
                         return@launch
                     }
                 }
-                // Still weak or not available -> turn Wi-Fi back off and wait next backoff
                 val nowMs = System.currentTimeMillis()
                 val backoffMs = WIFI_RECOVERY_BASE_BACKOFF_MS * (1L shl wifiBackoffStep.coerceAtMost(3))
                 nextWifiProbeEligibleMs = nowMs + backoffMs
@@ -685,8 +854,9 @@ class SmartNetworkService : Service() {
         const val ACTION_STOP = "action_stop_smart_network"
 
         private const val EVALUATION_INTERVAL_SCREEN_ON_MS = 12_000L
-        private const val PROBE_CACHE_TTL_MS = 30_000L
+        private const val PROBE_CACHE_TTL_MS = 36_000L
         private const val NR_RECOVERY_BASE_BACKOFF_MS = 180_000L   // 3 min -> 6 min -> 12 min -> 24 min
         private const val WIFI_RECOVERY_BASE_BACKOFF_MS = 120_000L // 2 min -> 4 min -> 8 min -> 16 min
+        private const val SIM_NO_DATA_QUARANTINE_MS = 1_200_000L   // 20 min quarantine for SIM with expired data pack
     }
 }
