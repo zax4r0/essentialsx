@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 data class FloatingTab(val label: String, val icon: ImageVector)
@@ -41,16 +43,20 @@ fun FloatingTabBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 3.dp,
-        shadowElevation = 8.dp,
+        tonalElevation = 4.dp,
+        shadowElevation = 10.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             tabs.forEachIndexed { index, tab ->
@@ -70,13 +76,13 @@ fun FloatingTabBar(
                         .clip(CircleShape)
                         .background(container)
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) })
-                        .padding(horizontal = if (selected) 12.dp else 10.dp, vertical = 10.dp),
+                        .padding(horizontal = if (selected) 16.dp else 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = if (selected) null else tab.label,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(24.dp),
                         tint = content
                     )
                     AnimatedVisibility(
@@ -86,8 +92,9 @@ fun FloatingTabBar(
                     ) {
                         Text(
                             tab.label,
-                            modifier = Modifier.padding(start = 6.dp),
-                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(start = 8.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
                             color = content,
                             maxLines = 1
                         )

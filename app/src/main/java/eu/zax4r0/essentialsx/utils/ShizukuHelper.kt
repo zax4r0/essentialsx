@@ -3,14 +3,21 @@ package eu.zax4r0.essentialsx.utils
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
 
 object ShizukuHelper {
 
     private const val TAG = "ShizukuHelper"
     const val REQUEST_CODE_SHIZUKU = 1005
+    private const val APP_PACKAGE = "eu.zax4r0.essentialsx"
+    private val helperScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var permissionsGrantedOnce = false
 
     private val _isAvailable = MutableStateFlow(false)
     val isAvailable: StateFlow<Boolean> = _isAvailable
@@ -44,10 +51,19 @@ object ShizukuHelper {
     fun updateState() {
         val available = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
         _isAvailable.value = available
-        _hasPermission.value = if (available) {
+        val granted = if (available) {
             runCatching { Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED }.getOrDefault(false)
         } else {
             false
+        }
+        _hasPermission.value = granted
+        if (granted && !permissionsGrantedOnce) {
+            permissionsGrantedOnce = true
+            helperScope.launch {
+                runCommand("pm grant $APP_PACKAGE android.permission.POST_NOTIFICATIONS")
+                runCommand("pm grant $APP_PACKAGE android.permission.WRITE_SECURE_SETTINGS")
+                runCommand("appops set $APP_PACKAGE REQUEST_INSTALL_PACKAGES allow")
+            }
         }
     }
 

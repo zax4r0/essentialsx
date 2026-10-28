@@ -69,6 +69,10 @@ fun HomeScreen(
 
     // Animator states
     val windowScale by AnimatorController.windowScale.collectAsState()
+    val transitionScale by AnimatorController.transitionScale.collectAsState()
+    val animatorScale by AnimatorController.animatorScale.collectAsState()
+    val isAnimatorLinked by AnimatorController.isLinked.collectAsState()
+    var showAnimatorSliders by remember { mutableStateOf(false) }
 
     // OTA Update states
     val availableUpdate by UpdateManager.availableUpdate.collectAsState()
@@ -84,7 +88,7 @@ fun HomeScreen(
         title = stringResource(R.string.app_name),
         titleBadge = if (hasPorterPermission) "Porter Ready" else null,
         actions = {
-            IconButton(onClick = { onNavigateToTab(5) }) {
+            IconButton(onClick = { onNavigateToTab(4) }) {
                 Icon(Icons.TwoTone.Settings, contentDescription = "Settings & About")
             }
         }
@@ -113,7 +117,7 @@ fun HomeScreen(
                     OtaQuickBannerCard(
                         availableUpdate = availableUpdate,
                         downloadState = downloadState,
-                        onOpenSettings = { onNavigateToTab(5) },
+                        onOpenSettings = { onNavigateToTab(4) },
                         onInstall = { UpdateManager.installDownloadedUpdate(context) },
                         onStartDownload = { upd -> UpdateManager.startBackgroundDownload(context, upd) }
                     )
@@ -521,7 +525,7 @@ fun HomeScreen(
             item(key = "bento_animator") {
                 BentoCardContainer(
                     isActive = windowScale != 1.0f,
-                    onClickHeader = { onNavigateToTab(4) }
+                    onClickHeader = { showAnimatorSliders = !showAnimatorSliders }
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -533,22 +537,11 @@ fun HomeScreen(
                             isActive = windowScale != 1.0f
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Animation Speed",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Icon(
-                                    imageVector = Icons.TwoTone.ChevronRight,
-                                    contentDescription = "Open Animator tab",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Text(
+                                text = "Animation Speed",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             Text(
                                 text = if (windowScale == 0f) "Animations Off (0.0x)" else "Current scale: ${windowScale}x",
                                 style = MaterialTheme.typography.bodySmall,
@@ -556,10 +549,13 @@ fun HomeScreen(
                             )
                         }
                         FilledTonalButton(
-                            onClick = { onNavigateToTab(4) },
+                            onClick = { showAnimatorSliders = !showAnimatorSliders },
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                         ) {
-                            Text("Sliders", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                if (showAnimatorSliders) "Hide" else "Sliders",
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                     }
 
@@ -590,6 +586,47 @@ fun HomeScreen(
                                     Text(label, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
+                        }
+                    }
+
+                    if (showAnimatorSliders) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Link All 3 Scales",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Switch(
+                                checked = isAnimatorLinked,
+                                onCheckedChange = { AnimatorController.setLinked(context, it) }
+                            )
+                        }
+                        AnimationScaleSlider(
+                            title = stringResource(R.string.animator_window_scale),
+                            value = windowScale,
+                            enabled = AnimatorController.canModify(context),
+                            onValueChange = { AnimatorController.setWindowScale(context, it) }
+                        )
+                        if (!isAnimatorLinked) {
+                            AnimationScaleSlider(
+                                title = stringResource(R.string.animator_transition_scale),
+                                value = transitionScale,
+                                enabled = AnimatorController.canModify(context),
+                                onValueChange = { AnimatorController.setTransitionScale(context, it) }
+                            )
+                            AnimationScaleSlider(
+                                title = stringResource(R.string.animator_duration_scale),
+                                value = animatorScale,
+                                enabled = AnimatorController.canModify(context),
+                                onValueChange = { AnimatorController.setAnimatorScale(context, it) }
+                            )
                         }
                     }
                 }
@@ -691,12 +728,14 @@ private fun OtaQuickBannerCard(
                 Column(modifier = Modifier.weight(1f)) {
                     val title = when (downloadState) {
                         is UpdateManager.DownloadState.Downloading -> "Downloading Update..."
+                        is UpdateManager.DownloadState.Installing -> "Installing Update v${downloadState.versionName}..."
                         is UpdateManager.DownloadState.ReadyToInstall -> "Update Ready: v${downloadState.versionName}"
                         is UpdateManager.DownloadState.Failed -> "Update Download Failed"
                         UpdateManager.DownloadState.Idle -> "Update Available: v${availableUpdate?.versionName.orEmpty()}"
                     }
                     val sub = when (downloadState) {
                         is UpdateManager.DownloadState.Downloading -> UpdateManager.formatDownloadStatus(downloadState)
+                        is UpdateManager.DownloadState.Installing -> "Applying update via Porter / Shizuku..."
                         is UpdateManager.DownloadState.ReadyToInstall -> "Tap Install to apply update now"
                         is UpdateManager.DownloadState.Failed -> downloadState.message
                         UpdateManager.DownloadState.Idle -> availableUpdate?.releaseTitle.orEmpty()
@@ -714,6 +753,12 @@ private fun OtaQuickBannerCard(
                         ) {
                             Text("Install", style = MaterialTheme.typography.labelSmall)
                         }
+                    }
+                    is UpdateManager.DownloadState.Installing -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp
+                        )
                     }
                     is UpdateManager.DownloadState.Downloading -> {
                         CircularProgressIndicator(
@@ -737,6 +782,10 @@ private fun OtaQuickBannerCard(
             if (downloadState is UpdateManager.DownloadState.Downloading) {
                 LinearProgressIndicator(
                     progress = { downloadState.progress.toFloat() / 100f },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else if (downloadState is UpdateManager.DownloadState.Installing) {
+                LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth()
                 )
             }

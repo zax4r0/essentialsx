@@ -48,6 +48,11 @@ class UpdateManagerTest {
                 )
             )
         )
+        assertFalse(
+            UpdateManager.canStartDownload(
+                UpdateManager.DownloadState.Installing(versionName = "1.2.0-beta.4")
+            )
+        )
     }
 
     @Test

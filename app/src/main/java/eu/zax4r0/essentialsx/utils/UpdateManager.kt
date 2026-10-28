@@ -1,5 +1,6 @@
 package eu.zax4r0.essentialsx.utils
 
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -8,6 +9,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
@@ -23,6 +25,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.lang.ref.WeakReference
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -42,6 +45,9 @@ object UpdateManager {
 
     // Process-level scope so background downloads survive tab switches, dialog dismissal, and app backgrounding
     private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile private var resumedActivityRef: WeakReference<Activity>? = null
+    @Volatile private var pendingAutoInstallFile: File? = null
 
     private val _includePreReleases = MutableStateFlow(false)
     val includePreReleases: StateFlow<Boolean> = _includePreReleases
@@ -68,6 +74,9 @@ object UpdateManager {
             val progress: Int,
             val downloadedBytes: Long,
             val totalBytes: Long
+        ) : DownloadState
+        data class Installing(
+            val versionName: String
         ) : DownloadState
         data class ReadyToInstall(
             val versionName: String,
@@ -97,6 +106,25 @@ object UpdateManager {
         if (shouldShowWhatsNew(lastSeenVersion, currentVersion)) {
             _showWhatsNew.value = true
         }
+        val appContext = context.applicationContext
+        downloadScope.launch {
+            checkForUpdate(appContext)
+        }
+    }
+
+    fun onActivityResumed(activity: Activity) {
+        resumedActivityRef = WeakReference(activity)
+        val pending = pendingAutoInstallFile
+        if (pending != null && pending.exists()) {
+            pendingAutoInstallFile = null
+            installApk(activity, pending)
+        }
+    }
+
+    fun onActivityPaused(activity: Activity) {
+        if (resumedActivityRef?.get() === activity) {
+            resumedActivityRef = null
+        }
     }
 
     fun dismissWhatsNew(context: Context) {
@@ -120,8 +148,8 @@ object UpdateManager {
     fun getWhatsNewHighlights(version: String): List<WhatsNewItem> = listOf(
         WhatsNewItem(
             badge = "UI & Tabs",
-            title = "6-Tab Floating Bar & Bento Quick Control Home",
-            description = "Dedicated tabs for Home, SIM, Smart Net, Wi-Fi, Animator & Settings (⚙️), plus Bento Action Cards on Home for 1-tap control."
+            title = "Full-Width 5-Tab Bar & Bento Quick Control Home",
+            description = "Spacious full-width floating tab bar (Home, SIM, Smart, Wi-Fi, Settings ⚙️) + Bento Action Cards on Home for 1-tap control."
         ),
         WhatsNewItem(
             badge = "Search & Filter",
@@ -135,8 +163,8 @@ object UpdateManager {
         ),
         WhatsNewItem(
             badge = "OTA Engine",
-            title = "Background OTA Download & Notifications",
-            description = "Updates download continuously in the background with live system notification progress—switch tabs or minimize freely."
+            title = "Seamless Shizuku & Background OTA Updates",
+            description = "Downloads in the background with live notifications and installs seamlessly via Porter/Shizuku or system installer."
         ),
         WhatsNewItem(
             badge = "Smart Net",
@@ -149,10 +177,14 @@ object UpdateManager {
         _includePreReleases.value = include
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_INCLUDE_PRERELEASES, include).apply()
+        val appContext = context.applicationContext
+        downloadScope.launch {
+            checkForUpdate(appContext, include)
+        }
     }
 
     internal fun canStartDownload(state: DownloadState): Boolean =
-        state !is DownloadState.Downloading
+        state !is DownloadState.Downloading && state !is DownloadState.Installing
 
     internal fun formatDownloadStatus(state: DownloadState.Downloading): String {
         if (state.totalBytes > 0L) {
@@ -251,9 +283,7 @@ object UpdateManager {
                 isPreRelease = isPreRelease,
                 isUpdateAvailable = isAvailable
             )
-            if (isAvailable) {
-                _availableUpdate.value = info
-            }
+            _availableUpdate.value = if (isAvailable) info else null
             info
         } catch (e: Exception) {
             Log.e(TAG, "Failed to check for updates", e)
@@ -274,6 +304,7 @@ object UpdateManager {
         if (!canStartDownload(_downloadState.value)) return
 
         val appContext = context.applicationContext
+        pendingAutoInstallFile = null
         _downloadState.value = DownloadState.Downloading(
             versionName = update.versionName,
             progress = 0,
@@ -285,30 +316,38 @@ object UpdateManager {
 
         downloadScope.launch {
             try {
-                val url = URL(downloadUrl)
-                val connection = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15000
-                    readTimeout = 30000
-                    instanceFollowRedirects = true
+                // Ensure notifications and install permissions are granted via Shizuku if available
+                if (ShizukuHelper.hasPorterPermission()) {
+                    ShizukuHelper.runCommand("pm grant ${appContext.packageName} android.permission.POST_NOTIFICATIONS")
+                    ShizukuHelper.runCommand("appops set ${appContext.packageName} REQUEST_INSTALL_PACKAGES allow")
                 }
 
-                // Handle HTTP redirects (GitHub releases redirect to AWS S3)
-                var redirectedUrl = url
-                var redirectedConnection = connection
-                var status = redirectedConnection.responseCode
+                var currentUrl = URL(downloadUrl)
+                var redirectedConnection: HttpURLConnection
+                var status: Int
                 var redirects = 0
-                while ((status == HttpURLConnection.HTTP_MOVED_TEMP ||
-                            status == HttpURLConnection.HTTP_MOVED_PERM ||
-                            status == HttpURLConnection.HTTP_SEE_OTHER) && redirects < 5
-                ) {
-                    val newUrl = redirectedConnection.getHeaderField("Location")
-                    redirectedUrl = URL(newUrl)
-                    redirectedConnection = (redirectedUrl.openConnection() as HttpURLConnection).apply {
+
+                while (true) {
+                    redirectedConnection = (currentUrl.openConnection() as HttpURLConnection).apply {
                         connectTimeout = 15000
                         readTimeout = 30000
+                        instanceFollowRedirects = true
+                        setRequestProperty("User-Agent", "EssentialsX-App")
+                        setRequestProperty("Accept", "application/octet-stream")
                     }
                     status = redirectedConnection.responseCode
-                    redirects++
+                    if ((status == HttpURLConnection.HTTP_MOVED_TEMP ||
+                                status == HttpURLConnection.HTTP_MOVED_PERM ||
+                                status == HttpURLConnection.HTTP_SEE_OTHER ||
+                                status == 307 ||
+                                status == 308) && redirects < 6
+                    ) {
+                        val location = redirectedConnection.getHeaderField("Location") ?: break
+                        currentUrl = URL(currentUrl, location)
+                        redirects++
+                    } else {
+                        break
+                    }
                 }
 
                 if (status != HttpURLConnection.HTTP_OK) {
@@ -319,7 +358,7 @@ object UpdateManager {
                     return@launch
                 }
 
-                val fileLength = redirectedConnection.contentLength.toLong().coerceAtLeast(0L)
+                val fileLength = redirectedConnection.contentLengthLong.coerceAtLeast(0L)
                 val downloadDir = appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: appContext.cacheDir
                 val destinationFile = File(downloadDir, "EssentialsX_update.apk")
                 if (destinationFile.exists()) destinationFile.delete()
@@ -353,11 +392,39 @@ object UpdateManager {
                     }
                 }
 
+                if (!destinationFile.exists() || destinationFile.length() < 50_000L) {
+                    val msg = "Downloaded APK file is incomplete or corrupted"
+                    _downloadState.value = DownloadState.Failed(update.versionName, msg)
+                    notifyFailed(appContext, update.versionName, msg)
+                    withContext(Dispatchers.Main) { onError?.invoke(msg) }
+                    return@launch
+                }
+
+                // Try privileged Shizuku install first so updates succeed even if the user switched apps!
+                if (ShizukuHelper.hasPorterPermission()) {
+                    _downloadState.value = DownloadState.Installing(update.versionName)
+                    notifyInstalling(appContext, update.versionName)
+                    val tmpPath = "/data/local/tmp/EssentialsX_update.apk"
+                    val installedViaShizuku = ShizukuHelper.runCommand(
+                        "cp '${destinationFile.absolutePath}' $tmpPath && chmod 644 $tmpPath && pm install -r $tmpPath && rm -f $tmpPath"
+                    )
+                    if (installedViaShizuku) {
+                        // PackageManager replaces the app and restarts MainActivity automatically
+                        return@launch
+                    }
+                }
+
                 _downloadState.value = DownloadState.ReadyToInstall(update.versionName, destinationFile)
                 notifyReadyToInstall(appContext, update.versionName, destinationFile)
 
-                withContext(Dispatchers.Main) {
-                    installApk(appContext, destinationFile)
+                val activeActivity = resumedActivityRef?.get()
+                if (activeActivity != null) {
+                    withContext(Dispatchers.Main) {
+                        installApk(activeActivity, destinationFile)
+                    }
+                } else {
+                    // User is in another app — queue auto-install for when they return OR tap notification
+                    pendingAutoInstallFile = destinationFile
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Background download error", e)
@@ -371,13 +438,43 @@ object UpdateManager {
 
     fun installDownloadedUpdate(context: Context) {
         val ready = _downloadState.value as? DownloadState.ReadyToInstall ?: return
-        if (ready.apkFile.exists()) {
-            installApk(context, ready.apkFile)
+        if (!ready.apkFile.exists()) return
+
+        if (ShizukuHelper.hasPorterPermission()) {
+            val appContext = context.applicationContext
+            _downloadState.value = DownloadState.Installing(ready.versionName)
+            notifyInstalling(appContext, ready.versionName)
+            downloadScope.launch {
+                val tmpPath = "/data/local/tmp/EssentialsX_update.apk"
+                val ok = ShizukuHelper.runCommand(
+                    "cp '${ready.apkFile.absolutePath}' $tmpPath && chmod 644 $tmpPath && pm install -r $tmpPath && rm -f $tmpPath"
+                )
+                if (!ok) {
+                    _downloadState.value = DownloadState.ReadyToInstall(ready.versionName, ready.apkFile)
+                    withContext(Dispatchers.Main) {
+                        installApk(resumedActivityRef?.get() ?: context, ready.apkFile)
+                    }
+                }
+            }
+            return
         }
+
+        installApk(resumedActivityRef?.get() ?: context, ready.apkFile)
     }
 
     fun installApk(context: Context, file: File) {
         runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+                val unknownSourcesIntent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}")
+                ).apply {
+                    if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(unknownSourcesIntent)
+                return
+            }
+
             val contentUri: Uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -386,7 +483,10 @@ object UpdateManager {
 
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(contentUri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (context !is Activity) {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
             }
             context.startActivity(installIntent)
         }.onFailure { e ->
@@ -428,6 +528,21 @@ object UpdateManager {
                 .setProgress(100, progress, totalBytes <= 0L)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .build()
+            nm.notify(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun notifyInstalling(context: Context, versionName: String) {
+        runCatching {
+            val nm = context.getSystemService(NotificationManager::class.java) ?: return
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_smart_network)
+                .setContentTitle("Installing EssentialsX v$versionName")
+                .setContentText("Applying update in background...")
+                .setProgress(100, 100, true)
+                .setOngoing(true)
                 .setSilent(true)
                 .build()
             nm.notify(NOTIFICATION_ID, notification)

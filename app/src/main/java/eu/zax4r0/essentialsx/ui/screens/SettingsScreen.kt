@@ -294,6 +294,7 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
             item(key = "check_updates") {
                 val updateSummary = when (val state = downloadState) {
                     is UpdateManager.DownloadState.Downloading -> UpdateManager.formatDownloadStatus(state)
+                    is UpdateManager.DownloadState.Installing -> "Installing v${state.versionName}..."
                     is UpdateManager.DownloadState.ReadyToInstall -> "Downloaded v${state.versionName} • Ready to install"
                     is UpdateManager.DownloadState.Failed -> state.message
                     UpdateManager.DownloadState.Idle -> {
@@ -317,6 +318,12 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                                 is UpdateManager.DownloadState.Downloading -> {
                                     CircularProgressIndicator(
                                         progress = { state.progress.toFloat() / 100f },
+                                        modifier = Modifier.size(22.dp),
+                                        strokeWidth = 2.5.dp
+                                    )
+                                }
+                                is UpdateManager.DownloadState.Installing -> {
+                                    CircularProgressIndicator(
                                         modifier = Modifier.size(22.dp),
                                         strokeWidth = 2.5.dp
                                     )
