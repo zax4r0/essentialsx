@@ -86,6 +86,7 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var availableUpdate by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
     var updateDownloadProgress by remember { mutableStateOf<Int?>(null) }
+    val includePreReleases by UpdateManager.includePreReleases.collectAsState()
 
     fun openUrl(url: String) {
         runCatching {
@@ -620,8 +621,22 @@ fun HomeScreen(bottomInset: Dp = 0.dp) {
             }
 
             item {
+                SettingsSwitch(
+                    title = "Receive Pre-Release (Beta) Updates",
+                    icon = Icons.TwoTone.Science,
+                    checked = includePreReleases,
+                    summary = if (includePreReleases) {
+                        "Opted in • OTA checks both beta pre-releases and stable releases"
+                    } else {
+                        "Stable only • Toggle on to receive early beta builds via OTA"
+                    },
+                    onCheckedChange = { UpdateManager.setIncludePreReleases(context, it) }
+                )
+            }
+
+            item {
                 SettingsItem(
-                    title = "EssentialsX v1.0.0",
+                    title = "EssentialsX v${UpdateManager.getCurrentVersion(context)}",
                     icon = Icons.TwoTone.Info,
                     summary = "Advanced utility suite • Click for details",
                     onClick = { showAboutDialog = true }

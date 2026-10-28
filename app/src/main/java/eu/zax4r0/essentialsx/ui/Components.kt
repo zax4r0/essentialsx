@@ -244,8 +244,9 @@ fun AboutDialog(
                     modifier = Modifier.size(40.dp)
                 )
                 Column {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Text("EssentialsX", style = MaterialTheme.typography.titleLarge)
-                    Text("v1.0.0 • by zax4r0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    Text("v${eu.zax4r0.essentialsx.utils.UpdateManager.getCurrentVersion(context)} • by zax4r0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         },
