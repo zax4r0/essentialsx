@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
+    <!-- Wi-Fi Priority permissions -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- OTA update permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -104,6 +107,25 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- Wi-Fi Priority Background Service -->
+        <service
+            android:name=".features.wifi.WifiPriorityService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keep the phone on the highest-priority saved Wi-Fi network when auto-switch is enabled" />
+        </service>
+
+        <!-- Restart Wi-Fi Priority after reboot when it was enabled -->
+        <receiver
+            android:name=".features.wifi.WifiBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Shizuku Client Provider -->
         <provider

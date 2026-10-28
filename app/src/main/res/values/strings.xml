@@ -46,6 +46,13 @@
     <string name="animator_preset_slow">Slow (1.5x)</string>
     <string name="animator_reset">Reset to Default (1.0x)</string>
 
+    <!-- Wi-Fi Priority -->
+    <string name="wifi_priority_title">Wi-Fi Priority</string>
+    <string name="wifi_notif_channel">Wi-Fi Priority Active</string>
+    <string name="wifi_notif_title">Wi-Fi priority is active</string>
+    <string name="wifi_notif_text">Connecting to the highest saved network in range</string>
+    <string name="wifi_notif_stop">Turn Off</string>
+
     <!-- General -->
     <string name="status_granted">Granted</string>
     <string name="status_missing">Missing Permission</string>
