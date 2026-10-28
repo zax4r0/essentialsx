@@ -35,13 +35,23 @@ object NetworkQualityScorer {
         QUARANTINE_BOTH_AND_HOLD
     }
 
+    data class CarrierAggregationInfo(
+        val isCarrierAggregated: Boolean,
+        val componentCarrierCount: Int,
+        val totalBandwidthMhz: Int?,
+        val ratDisplayLabel: String
+    )
+
     data class SimQualitySnapshot(
         val subId: Int,
         val slotIndex: Int,
         val displayName: String,
         val isDefaultData: Boolean,
-        val ratLabel: String,          // "5G NR", "4G LTE", "3G", "2G"
+        val ratLabel: String,          // e.g. "5G+ (2CC • 120MHz)", "4G+ (3CC • 50MHz)", "5G NR", "4G LTE"
         val is5gActive: Boolean,
+        val isCarrierAggregated: Boolean = false,
+        val componentCarrierCount: Int = 1,
+        val totalBandwidthMhz: Int? = null,
         val rsrpDbm: Int?,             // e.g. -88 dBm
         val rsrqDb: Int?,              // e.g. -9 dB
         val sinrDb: Int?,              // e.g. +14 dB
@@ -82,6 +92,58 @@ object NetworkQualityScorer {
     }
 
     /**
+     * Parses Carrier Aggregation (CA) status, Component Carrier count (1CC..5CC), and total aggregated
+     * bandwidth in MHz from Android's [TelephonyDisplayInfo] override types and [android.telephony.ServiceState.getCellBandwidths].
+     */
+    fun parseCarrierAggregation(
+        is5g: Boolean,
+        isLteCaOverride: Boolean,
+        isNrAdvancedOverride: Boolean,
+        cellBandwidthsKhz: IntArray?,
+        serviceStateCaReflection: Boolean = false
+    ): CarrierAggregationInfo {
+        val validBwKhz = cellBandwidthsKhz?.filter { it > 0 }.orEmpty()
+        val bwCount = validBwKhz.size
+        val totalMhz = if (validBwKhz.isNotEmpty()) {
+            (validBwKhz.sum() / 1000.0).roundToInt().coerceAtLeast(1)
+        } else {
+            null
+        }
+
+        val isCa = isLteCaOverride || isNrAdvancedOverride || serviceStateCaReflection || bwCount >= 2
+        val ccCount = when {
+            bwCount >= 2 -> bwCount
+            isCa -> 2
+            else -> 1
+        }
+
+        val label = if (is5g) {
+            when {
+                isCa && ccCount >= 2 && totalMhz != null -> "5G+ (${ccCount}CC • ${totalMhz}MHz)"
+                isCa && totalMhz != null -> "5G+ (${totalMhz}MHz)"
+                isCa -> "5G+ NR-CA"
+                totalMhz != null -> "5G NR (${totalMhz}MHz)"
+                else -> "5G NR"
+            }
+        } else {
+            when {
+                isCa && ccCount >= 2 && totalMhz != null -> "4G+ (${ccCount}CC • ${totalMhz}MHz)"
+                isCa && totalMhz != null -> "4G+ (${totalMhz}MHz)"
+                isCa -> "4G+ LTE-CA"
+                totalMhz != null -> "4G LTE (${totalMhz}MHz)"
+                else -> "4G LTE"
+            }
+        }
+
+        return CarrierAggregationInfo(
+            isCarrierAggregated = isCa,
+            componentCarrierCount = ccCount,
+            totalBandwidthMhz = totalMhz,
+            ratDisplayLabel = label
+        )
+    }
+
+    /**
      * Computes the composite RF & Link Health score [0..100] for a cellular connection.
      *
      * Weights:
@@ -89,8 +151,9 @@ object NetworkQualityScorer {
      * - RSRQ (35%): [-19 dB -> 0, -6 dB -> 100]
      * - RSRP (20%): [-120 dBm -> 0, -75 dBm -> 100]
      *
-     * If [consecutiveProbeFailures] >= 2 (or unvalidated + failed probe), hard-caps score <= 12
-     * so a 5-bar SIM with an expired data pack immediately triggers failover to the other SIM.
+     * Also incorporates Carrier Aggregation (4G+ / 5G+) and aggregated channel bandwidth (MHz).
+     * If [consecutiveProbeFailures] >= 2, hard-caps score <= 12 so a 5-bar SIM with an expired
+     * data pack immediately triggers failover to the other SIM.
      */
     fun computeCellularRawScore(
         rsrpDbm: Int?,
@@ -100,7 +163,9 @@ object NetworkQualityScorer {
         is5g: Boolean,
         isValidated: Boolean,
         latencyMs: Int?,
-        consecutiveProbeFailures: Int = 0
+        consecutiveProbeFailures: Int = 0,
+        isCarrierAggregated: Boolean = false,
+        totalBandwidthMhz: Int? = null
     ): Int {
         // Hard-cap if data pack is expired / internet probe failed consecutively
         if (consecutiveProbeFailures >= 2) {
@@ -121,6 +186,22 @@ object NetworkQualityScorer {
         // Small capacity bonus for clean 5G NR when SINR & RSRQ are genuinely healthy
         if (is5g && (sinrDb == null || sinrDb >= 6) && (rsrqDb == null || rsrqDb >= -12)) {
             composite += 4.0
+        }
+
+        // Carrier Aggregation (4G+ / 5G+) & Total Channel Bandwidth (Shannon capacity) modifier
+        if (sinrDb == null || sinrDb >= 2) {
+            if (isCarrierAggregated) {
+                composite += when {
+                    totalBandwidthMhz != null && totalBandwidthMhz >= 50 -> 8.0
+                    totalBandwidthMhz != null && totalBandwidthMhz >= 30 -> 6.0
+                    else -> 5.0
+                }
+            } else if (totalBandwidthMhz != null) {
+                when {
+                    totalBandwidthMhz <= 5 -> composite -= 4.0   // Narrow 5MHz channel saturates easily
+                    totalBandwidthMhz >= 40 -> composite += 4.0  // Wideband single carrier (e.g. n78 40-100MHz)
+                }
+            }
         }
 
         // Link validation & micro-probe RTT modifier

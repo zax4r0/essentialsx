@@ -21,6 +21,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.telephony.PhoneStateListener
+import android.telephony.ServiceState
 import android.telephony.SignalStrength
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyDisplayInfo
@@ -49,9 +50,13 @@ class SmartNetworkService : Service() {
     private var isScreenOn = true
     private var inVoiceCall = false
 
-    // Per-subId live RF cache populated passively by TelephonyCallback / PhoneStateListener
+    // Per-subId live RF & Carrier Aggregation cache populated passively by TelephonyCallback / PhoneStateListener
     private val latestSignalMap = ConcurrentHashMap<Int, SignalStrength>()
     private val latest5gDisplayMap = ConcurrentHashMap<Int, Boolean>()
+    private val latestLteCaOverrideMap = ConcurrentHashMap<Int, Boolean>()
+    private val latestNrAdvancedOverrideMap = ConcurrentHashMap<Int, Boolean>()
+    private val latestBandwidthsKhzMap = ConcurrentHashMap<Int, IntArray>()
+    private val latestServiceStateCaMap = ConcurrentHashMap<Int, Boolean>()
     private val simEmaScores = ConcurrentHashMap<Int, Int>()
     private val simLatencyCache = ConcurrentHashMap<Int, Pair<Long, Int>>() // subId -> (timestampMs, rttMs)
     private val simProbeFailuresMap = ConcurrentHashMap<Int, Int>()         // subId -> consecutive HTTP 204 failures
@@ -208,6 +213,9 @@ class SmartNetworkService : Service() {
             val subTm = baseTm.createForSubscriptionId(sim.subId)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 subTm.signalStrength?.let { latestSignalMap[sim.subId] = it }
+                runCatching { subTm.serviceState }?.getOrNull()?.let { ss ->
+                    updateServiceStateCache(sim.subId, ss)
+                }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -218,11 +226,24 @@ class SmartNetworkService : Service() {
         }
     }
 
+    private fun updateServiceStateCache(subId: Int, serviceState: ServiceState) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            latestBandwidthsKhzMap[subId] = serviceState.cellBandwidths
+        }
+        val isCaReflected = runCatching {
+            val method = ServiceState::class.java.getDeclaredMethod("isUsingCarrierAggregation")
+            method.isAccessible = true
+            method.invoke(serviceState) as? Boolean ?: false
+        }.getOrDefault(false)
+        latestServiceStateCaMap[subId] = isCaReflected
+    }
+
     @RequiresApi(Build.VERSION_CODES.S)
     private fun registerCallbackApi31(subId: Int, subTm: TelephonyManager) {
         val callback = object : TelephonyCallback(),
             TelephonyCallback.SignalStrengthsListener,
             TelephonyCallback.DisplayInfoListener,
+            TelephonyCallback.ServiceStateListener,
             TelephonyCallback.CallStateListener {
 
             override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
@@ -235,6 +256,12 @@ class SmartNetworkService : Service() {
                         overrideType == TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_NSA ||
                         overrideType == TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_ADVANCED
                 latest5gDisplayMap[subId] = is5g
+                latestLteCaOverrideMap[subId] = (overrideType == TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_LTE_CA)
+                latestNrAdvancedOverrideMap[subId] = (overrideType == TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_ADVANCED)
+            }
+
+            override fun onServiceStateChanged(serviceState: ServiceState) {
+                updateServiceStateCache(subId, serviceState)
             }
 
             override fun onCallStateChanged(state: Int) {
@@ -258,6 +285,13 @@ class SmartNetworkService : Service() {
             }
 
             @Deprecated("Deprecated in Java")
+            override fun onServiceStateChanged(serviceState: ServiceState?) {
+                if (serviceState != null) {
+                    updateServiceStateCache(subId, serviceState)
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
             override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                 inVoiceCall = (state != TelephonyManager.CALL_STATE_IDLE)
             }
@@ -265,7 +299,9 @@ class SmartNetworkService : Service() {
         runCatching {
             subTm.listen(
                 listener,
-                PhoneStateListener.LISTEN_SIGNAL_STRENGTHS or PhoneStateListener.LISTEN_CALL_STATE
+                PhoneStateListener.LISTEN_SIGNAL_STRENGTHS or
+                        PhoneStateListener.LISTEN_SERVICE_STATE or
+                        PhoneStateListener.LISTEN_CALL_STATE
             )
             registeredListenersLegacy[subId] = Pair(subTm, listener)
         }
@@ -352,6 +388,14 @@ class SmartNetworkService : Service() {
             val isQuarantined = nowMs < quarantineUntil
             val hasInternet = probeFailures < 2 && !isQuarantined
 
+            val caInfo = NetworkQualityScorer.parseCarrierAggregation(
+                is5g = is5g,
+                isLteCaOverride = latestLteCaOverrideMap[sim.subId] == true,
+                isNrAdvancedOverride = latestNrAdvancedOverrideMap[sim.subId] == true,
+                cellBandwidthsKhz = latestBandwidthsKhzMap[sim.subId],
+                serviceStateCaReflection = latestServiceStateCaMap[sim.subId] == true
+            )
+
             val rawScore = NetworkQualityScorer.computeCellularRawScore(
                 rsrpDbm = rf.rsrpDbm,
                 rsrqDb = rf.rsrqDb,
@@ -360,7 +404,9 @@ class SmartNetworkService : Service() {
                 is5g = is5g,
                 isValidated = if (sim.isDefaultData && !isWifiActive) isActiveNetworkValidated else true,
                 latencyMs = latencyMs,
-                consecutiveProbeFailures = if (isQuarantined) 2 else probeFailures
+                consecutiveProbeFailures = if (isQuarantined) 2 else probeFailures,
+                isCarrierAggregated = caInfo.isCarrierAggregated,
+                totalBandwidthMhz = caInfo.totalBandwidthMhz
             )
 
             // If internet is dead (data pack expired), bypass slow EMA decay and drop score immediately
@@ -371,10 +417,10 @@ class SmartNetworkService : Service() {
             }
             simEmaScores[sim.subId] = ema
 
-            val ratLabel = when {
-                is5g -> "5G NR"
-                sim.currentMode == NetworkModeController.NetworkMode.MODE_LTE_ONLY || rf.rsrpDbm != null -> "4G LTE"
-                else -> sim.currentMode.shortName
+            val ratLabel = if (is5g || sim.currentMode == NetworkModeController.NetworkMode.MODE_LTE_ONLY || rf.rsrpDbm != null) {
+                caInfo.ratDisplayLabel
+            } else {
+                sim.currentMode.shortName
             }
 
             simSnapshots[sim.subId] = NetworkQualityScorer.SimQualitySnapshot(
@@ -384,6 +430,9 @@ class SmartNetworkService : Service() {
                 isDefaultData = sim.isDefaultData,
                 ratLabel = ratLabel,
                 is5gActive = is5g,
+                isCarrierAggregated = caInfo.isCarrierAggregated,
+                componentCarrierCount = caInfo.componentCarrierCount,
+                totalBandwidthMhz = caInfo.totalBandwidthMhz,
                 rsrpDbm = rf.rsrpDbm,
                 rsrqDb = rf.rsrqDb,
                 sinrDb = rf.sinrDb,

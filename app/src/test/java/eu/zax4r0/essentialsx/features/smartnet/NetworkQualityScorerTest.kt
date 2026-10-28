@@ -408,4 +408,69 @@ class NetworkQualityScorerTest {
             )
         )
     }
+
+    @Test
+    fun `Carrier Aggregation parser extracts component carrier count, total MHz bandwidth, and 4G+ or 5G+ labels`() {
+        // 3CC LTE-A: 20 MHz + 20 MHz + 10 MHz = 50 MHz total
+        val caInfo4gPlus = NetworkQualityScorer.parseCarrierAggregation(
+            is5g = false,
+            isLteCaOverride = true,
+            isNrAdvancedOverride = false,
+            cellBandwidthsKhz = intArrayOf(20_000, 20_000, 10_000),
+            serviceStateCaReflection = false
+        )
+        assertEquals(true, caInfo4gPlus.isCarrierAggregated)
+        assertEquals(3, caInfo4gPlus.componentCarrierCount)
+        assertEquals(50, caInfo4gPlus.totalBandwidthMhz)
+        assertEquals("4G+ (3CC • 50MHz)", caInfo4gPlus.ratDisplayLabel)
+
+        // 2CC 5G+ NR-CA: 20 MHz + 100 MHz = 120 MHz total
+        val caInfo5gPlus = NetworkQualityScorer.parseCarrierAggregation(
+            is5g = true,
+            isLteCaOverride = false,
+            isNrAdvancedOverride = true,
+            cellBandwidthsKhz = intArrayOf(20_000, 100_000),
+            serviceStateCaReflection = true
+        )
+        assertEquals(true, caInfo5gPlus.isCarrierAggregated)
+        assertEquals(2, caInfo5gPlus.componentCarrierCount)
+        assertEquals(120, caInfo5gPlus.totalBandwidthMhz)
+        assertEquals("5G+ (2CC • 120MHz)", caInfo5gPlus.ratDisplayLabel)
+    }
+
+    @Test
+    fun `wideband Carrier Aggregation boosts score over narrow single-carrier channel at identical SINR and RSRP`() {
+        // Single narrow 5 MHz carrier without CA
+        val narrowSingleCarrierScore = NetworkQualityScorer.computeCellularRawScore(
+            rsrpDbm = -92,
+            rsrqDb = -10,
+            sinrDb = 10,
+            fallbackLevel = 3,
+            is5g = false,
+            isValidated = true,
+            latencyMs = 45,
+            consecutiveProbeFailures = 0,
+            isCarrierAggregated = false,
+            totalBandwidthMhz = 5
+        )
+
+        // 3CC 4G+ Carrier Aggregation bonding 60 MHz at the exact same RSRP/RSRQ/SINR
+        val widebandCaScore = NetworkQualityScorer.computeCellularRawScore(
+            rsrpDbm = -92,
+            rsrqDb = -10,
+            sinrDb = 10,
+            fallbackLevel = 3,
+            is5g = false,
+            isValidated = true,
+            latencyMs = 45,
+            consecutiveProbeFailures = 0,
+            isCarrierAggregated = true,
+            totalBandwidthMhz = 60
+        )
+
+        assertTrue(
+            "Expected wideband 60MHz CA ($widebandCaScore) to outscore narrow 5MHz single-carrier ($narrowSingleCarrierScore) by >= 10 points",
+            widebandCaScore >= narrowSingleCarrierScore + 10
+        )
+    }
 }
