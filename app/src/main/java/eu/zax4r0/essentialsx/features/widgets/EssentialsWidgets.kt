@@ -11,12 +11,12 @@ import android.view.View
 import android.widget.RemoteViews
 import android.widget.Toast
 import eu.zax4r0.essentialsx.R
-import eu.zax4r0.essentialsx.features.animator.AnimatorController
 import eu.zax4r0.essentialsx.features.caffeine.CaffeineController
 import eu.zax4r0.essentialsx.features.network.NetworkModeController
 import eu.zax4r0.essentialsx.features.network.NetworkModeDrawerActivity
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkController
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkDrawerActivity
+import eu.zax4r0.essentialsx.features.wifi.WifiPriorityController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,7 +37,8 @@ object EssentialsWidgetsUpdater {
     const val ACTION_SMARTNET_TRAY = "eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TRAY"
     const val ACTION_NETWORK_DRAWER = "eu.zax4r0.essentialsx.widget.ACTION_NETWORK_DRAWER"
     const val ACTION_SIM_SWITCH = "eu.zax4r0.essentialsx.widget.ACTION_SIM_SWITCH"
-    const val ACTION_ANIMATOR_CYCLE = "eu.zax4r0.essentialsx.widget.ACTION_ANIMATOR_CYCLE"
+    const val ACTION_WIFI_PRIORITY_TOGGLE = "eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_TOGGLE"
+    const val ACTION_WIFI_PRIORITY_SWITCH_NOW = "eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_SWITCH_NOW"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -69,29 +70,28 @@ object EssentialsWidgetsUpdater {
         }
     }
 
-    fun nextAnimatorScale(current: Float): Float = when {
-        current > 0.75f -> 0.5f
-        current > 0.1f -> 0.0f
-        else -> 1.0f
-    }
-
-    fun buildAnimatorWidgetModel(scale: Float): WidgetCardModel {
-        val isBoosted = scale < 0.99f
-        val subtitle = when {
-            scale <= 0.05f -> "Animations Off"
-            scale <= 0.3f -> "Snappy Boost"
-            scale <= 0.6f -> "Speed Boost"
-            scale <= 0.85f -> "Smooth"
-            scale <= 1.05f -> "Default Speed"
-            else -> "Slow Motion"
+    fun buildWifiPriorityWidgetModel(
+        isEnabled: Boolean,
+        connectedSsid: String?,
+        inRangeCount: Int
+    ): WidgetCardModel {
+        return if (isEnabled) {
+            val ssidPart = connectedSsid ?: "Scanning..."
+            val rangePart = if (inRangeCount > 0) " • $inRangeCount in range" else ""
+            WidgetCardModel(
+                title = "Wi-Fi Priority • ON",
+                subtitle = "$ssidPart$rangePart",
+                badge = "Switch",
+                isActive = true
+            )
+        } else {
+            WidgetCardModel(
+                title = "Wi-Fi Priority",
+                subtitle = connectedSsid?.let { "$it • Auto off" } ?: "Auto-switch off",
+                badge = "Switch",
+                isActive = false
+            )
         }
-        val scaleStr = String.format("%.1fx", scale)
-        return WidgetCardModel(
-            title = "Animator • $scaleStr",
-            subtitle = subtitle,
-            badge = "Cycle",
-            isActive = isBoosted
-        )
     }
 
     fun buildNetworkSimWidgetModel(
@@ -172,11 +172,24 @@ object EssentialsWidgetsUpdater {
                     updateAll(appCtx)
                 }
             }
-            ACTION_ANIMATOR_CYCLE -> {
-                AnimatorController.init(appCtx)
-                val next = nextAnimatorScale(AnimatorController.windowScale.value)
-                AnimatorController.setAllScales(appCtx, next)
+            ACTION_WIFI_PRIORITY_TOGGLE -> {
+                WifiPriorityController.init(appCtx)
+                val next = !WifiPriorityController.isEnabled.value
+                WifiPriorityController.setEnabled(appCtx, next)
+                if (next) {
+                    scope.launch {
+                        WifiPriorityController.switchToHighestPriorityNow()
+                        updateAll(appCtx)
+                    }
+                }
                 updateAll(appCtx)
+            }
+            ACTION_WIFI_PRIORITY_SWITCH_NOW -> {
+                WifiPriorityController.init(appCtx)
+                scope.launch {
+                    WifiPriorityController.switchToHighestPriorityNow()
+                    updateAll(appCtx)
+                }
             }
         }
     }
@@ -189,7 +202,7 @@ object EssentialsWidgetsUpdater {
             updateCaffeineWidgets(appCtx, mgr)
             updateSmartNetWidgets(appCtx, mgr)
             updateNetworkSimWidgets(appCtx, mgr)
-            updateAnimatorWidgets(appCtx, mgr)
+            updateWifiPriorityWidgets(appCtx, mgr)
             updateBarWidgets(appCtx, mgr)
         }
     }
@@ -251,18 +264,21 @@ object EssentialsWidgetsUpdater {
         }
     }
 
-    fun updateAnimatorWidgets(context: Context, mgr: AppWidgetManager = AppWidgetManager.getInstance(context)) {
-        val ids = mgr.getAppWidgetIds(ComponentName(context, AnimatorWidgetProvider::class.java))
+    fun updateWifiPriorityWidgets(context: Context, mgr: AppWidgetManager = AppWidgetManager.getInstance(context)) {
+        val ids = mgr.getAppWidgetIds(ComponentName(context, WifiPriorityWidgetProvider::class.java))
         if (ids.isEmpty()) return
-        val model = buildAnimatorWidgetModel(AnimatorController.windowScale.value)
-        val cyclePi = broadcastPendingIntent(context, AnimatorWidgetProvider::class.java, ACTION_ANIMATOR_CYCLE, 401)
+        val model = buildWifiPriorityWidgetModel(
+            isEnabled = WifiPriorityController.isEnabled.value,
+            connectedSsid = WifiPriorityController.connectedSsid.value,
+            inRangeCount = WifiPriorityController.inRange.value.size
+        )
         for (id in ids) {
             val views = buildPillRemoteViews(
                 context = context,
-                iconRes = R.drawable.ic_speed,
+                iconRes = R.drawable.ic_wifi,
                 model = model,
-                rootPendingIntent = cyclePi,
-                badgePendingIntent = cyclePi
+                rootPendingIntent = broadcastPendingIntent(context, WifiPriorityWidgetProvider::class.java, ACTION_WIFI_PRIORITY_TOGGLE, 401),
+                badgePendingIntent = broadcastPendingIntent(context, WifiPriorityWidgetProvider::class.java, ACTION_WIFI_PRIORITY_SWITCH_NOW, 402)
             )
             mgr.updateAppWidget(id, views)
         }
@@ -288,9 +304,13 @@ object EssentialsWidgetsUpdater {
         val netLabel = defaultSim?.displayName ?: "Network"
         val netSub = defaultSim?.currentMode?.shortName ?: "5G/4G"
 
-        val scale = AnimatorController.windowScale.value
-        val animActive = scale < 0.99f
-        val animSub = String.format("%.1fx", scale)
+        val wifiActive = WifiPriorityController.isEnabled.value
+        val connectedWifi = WifiPriorityController.connectedSsid.value
+        val wifiSub = when {
+            wifiActive && !connectedWifi.isNullOrBlank() -> connectedWifi
+            wifiActive -> "Active"
+            else -> "Off"
+        }
 
         for (id in ids) {
             val views = RemoteViews(context.packageName, R.layout.widget_control_bar)
@@ -332,16 +352,16 @@ object EssentialsWidgetsUpdater {
                 activityPendingIntent(context, NetworkModeDrawerActivity::class.java, 503)
             )
 
-            // 4. Animator
+            // 4. Wi-Fi Priority
             views.setInt(
-                R.id.bar_btn_animator,
+                R.id.bar_btn_wifi,
                 "setBackgroundResource",
-                if (animActive) R.drawable.bg_widget_chip_active else R.drawable.bg_widget_chip
+                if (wifiActive) R.drawable.bg_widget_chip_active else R.drawable.bg_widget_chip
             )
-            views.setTextViewText(R.id.bar_sub_animator, animSub)
+            views.setTextViewText(R.id.bar_sub_wifi, wifiSub)
             views.setOnClickPendingIntent(
-                R.id.bar_btn_animator,
-                broadcastPendingIntent(context, EssentialsBarWidgetProvider::class.java, ACTION_ANIMATOR_CYCLE, 504)
+                R.id.bar_btn_wifi,
+                broadcastPendingIntent(context, EssentialsBarWidgetProvider::class.java, ACTION_WIFI_PRIORITY_TOGGLE, 504)
             )
 
             mgr.updateAppWidget(id, views)
@@ -445,5 +465,5 @@ abstract class BaseEssentialsWidgetProvider : AppWidgetProvider() {
 class CaffeineWidgetProvider : BaseEssentialsWidgetProvider()
 class SmartNetworkWidgetProvider : BaseEssentialsWidgetProvider()
 class NetworkSimWidgetProvider : BaseEssentialsWidgetProvider()
-class AnimatorWidgetProvider : BaseEssentialsWidgetProvider()
+class WifiPriorityWidgetProvider : BaseEssentialsWidgetProvider()
 class EssentialsBarWidgetProvider : BaseEssentialsWidgetProvider()

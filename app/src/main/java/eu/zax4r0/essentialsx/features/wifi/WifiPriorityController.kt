@@ -67,6 +67,7 @@ object WifiPriorityController {
             .edit().putBoolean(KEY_ENABLED, enabled).apply()
         val intent = Intent(context, WifiPriorityService::class.java)
         if (enabled) ContextCompat.startForegroundService(context, intent) else context.stopService(intent)
+        eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater.updateAll(context)
     }
 
     fun move(context: Context, from: Int, to: Int) {

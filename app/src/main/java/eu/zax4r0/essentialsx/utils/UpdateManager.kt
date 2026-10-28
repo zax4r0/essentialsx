@@ -159,7 +159,7 @@ object UpdateManager {
         WhatsNewItem(
             badge = "Widgets",
             title = "Home Screen Widgets & 4×1 Control Bar",
-            description = "Pin Caffeine, Smart Network, 5G/SIM Drawer, Animation Speed, or the all-in-one 4×1 Control Bar directly to your Home Screen."
+            description = "Pin Caffeine, Smart Network, 5G/SIM Drawer, Wi-Fi Priority, or the all-in-one 4×1 Control Bar directly to your Home Screen."
         ),
         WhatsNewItem(
             badge = "Wi-Fi Priority",

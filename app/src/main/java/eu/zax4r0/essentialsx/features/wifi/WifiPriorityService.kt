@@ -50,8 +50,10 @@ class WifiPriorityService : Service() {
         if (loop == null) {
             loop = scope.launch {
                 while (isActive) {
-                    runCatching { WifiPriorityController.tick() }
-                        .onFailure { Log.e(TAG, "Priority check failed", it) }
+                    runCatching {
+                        WifiPriorityController.tick()
+                        eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater.updateAll(this@WifiPriorityService)
+                    }.onFailure { Log.e(TAG, "Priority check failed", it) }
                     delay(WifiPriorityController.CHECK_INTERVAL_MS)
                 }
             }

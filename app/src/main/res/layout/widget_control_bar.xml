@@ -140,9 +140,9 @@
             android:textSize="9sp" />
     </LinearLayout>
 
-    <!-- 4. Animator Speed -->
+    <!-- 4. Wi-Fi Priority -->
     <LinearLayout
-        android:id="@+id/bar_btn_animator"
+        android:id="@+id/bar_btn_wifi"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_marginStart="4dp"
@@ -153,32 +153,32 @@
         android:padding="6dp">
 
         <ImageView
-            android:id="@+id/bar_icon_animator"
+            android:id="@+id/bar_icon_wifi"
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:contentDescription="@null"
-            android:src="@drawable/ic_speed"
+            android:src="@drawable/ic_wifi"
             android:tint="#FFFFFF" />
 
         <TextView
-            android:id="@+id/bar_label_animator"
+            android:id="@+id/bar_label_wifi"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="Animator"
+            android:text="Wi-Fi Prio"
             android:textColor="#FFFFFF"
             android:textSize="10sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/bar_sub_animator"
+            android:id="@+id/bar_sub_wifi"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="1.0x"
+            android:text="Auto"
             android:textColor="#B8C4D9"
             android:textSize="9sp" />
     </LinearLayout>

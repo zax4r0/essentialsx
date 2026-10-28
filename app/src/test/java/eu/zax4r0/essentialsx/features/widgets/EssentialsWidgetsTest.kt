@@ -30,15 +30,25 @@ class EssentialsWidgetsTest {
     }
 
     @Test
-    fun formatsAnimatorWidgetLabelsAndNextScaleCycle() {
-        assertEquals(0.5f, EssentialsWidgetsUpdater.nextAnimatorScale(1.0f), 0.001f)
-        assertEquals(0.0f, EssentialsWidgetsUpdater.nextAnimatorScale(0.5f), 0.001f)
-        assertEquals(1.0f, EssentialsWidgetsUpdater.nextAnimatorScale(0.0f), 0.001f)
+    fun formatsWifiPriorityWidgetLabelsProperly() {
+        val activeState = EssentialsWidgetsUpdater.buildWifiPriorityWidgetModel(
+            isEnabled = true,
+            connectedSsid = "WeWorkWiFi",
+            inRangeCount = 2
+        )
+        assertEquals("Wi-Fi Priority • ON", activeState.title)
+        assertEquals("WeWorkWiFi • 2 in range", activeState.subtitle)
+        assertEquals("Switch", activeState.badge)
+        assertTrue(activeState.isActive)
 
-        val boosted = EssentialsWidgetsUpdater.buildAnimatorWidgetModel(0.5f)
-        assertEquals("Animator • 0.5x", boosted.title)
-        assertEquals("Speed Boost", boosted.subtitle)
-        assertTrue(boosted.isActive)
+        val idleState = EssentialsWidgetsUpdater.buildWifiPriorityWidgetModel(
+            isEnabled = false,
+            connectedSsid = null,
+            inRangeCount = 0
+        )
+        assertEquals("Wi-Fi Priority", idleState.title)
+        assertEquals("Auto-switch off", idleState.subtitle)
+        assertEquals("Switch", idleState.badge)
     }
 
     @Test

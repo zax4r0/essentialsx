@@ -209,16 +209,17 @@
         </receiver>
 
         <receiver
-            android:name=".features.widgets.AnimatorWidgetProvider"
+            android:name=".features.widgets.WifiPriorityWidgetProvider"
             android:exported="true"
-            android:label="@string/widget_animator_label">
+            android:label="@string/widget_wifi_priority_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_ANIMATOR_CYCLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_TOGGLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_SWITCH_NOW" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_animator_info" />
+                android:resource="@xml/widget_wifi_priority_info" />
         </receiver>
 
         <receiver
@@ -229,7 +230,7 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_TOGGLE" />
                 <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TOGGLE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_ANIMATOR_CYCLE" />
+                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_TOGGLE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

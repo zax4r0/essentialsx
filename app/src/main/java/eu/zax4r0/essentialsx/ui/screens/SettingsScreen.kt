@@ -25,12 +25,12 @@ import eu.zax4r0.essentialsx.features.network.DataSimTileService
 import eu.zax4r0.essentialsx.features.network.NetworkModeTileService
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkController
 import eu.zax4r0.essentialsx.features.smartnet.SmartNetworkTileService
-import eu.zax4r0.essentialsx.features.widgets.AnimatorWidgetProvider
 import eu.zax4r0.essentialsx.features.widgets.CaffeineWidgetProvider
 import eu.zax4r0.essentialsx.features.widgets.EssentialsBarWidgetProvider
 import eu.zax4r0.essentialsx.features.widgets.EssentialsWidgetsUpdater
 import eu.zax4r0.essentialsx.features.widgets.NetworkSimWidgetProvider
 import eu.zax4r0.essentialsx.features.widgets.SmartNetworkWidgetProvider
+import eu.zax4r0.essentialsx.features.widgets.WifiPriorityWidgetProvider
 import eu.zax4r0.essentialsx.ui.AboutDialog
 import eu.zax4r0.essentialsx.ui.ChoiceDialog
 import eu.zax4r0.essentialsx.ui.PorterScaffold
@@ -520,7 +520,7 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                 SettingsItem(
                     title = "EssentialsX 4×1 Control Bar",
                     icon = Icons.TwoTone.Widgets,
-                    summary = "All-in-one dock: Caffeine, Smart Net, 5G/SIM Drawer & Animation Speed",
+                    summary = "All-in-one dock: Caffeine, Smart Net, 5G/SIM Drawer & Wi-Fi Priority",
                     trailing = {
                         FilledTonalButton(
                             onClick = {
@@ -632,18 +632,18 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                 )
             }
 
-            item(key = "widget_animator") {
+            item(key = "widget_wifi_priority") {
                 SettingsItem(
-                    title = "Animation Speed Widget (2×1)",
-                    icon = Icons.TwoTone.Speed,
-                    summary = "1-tap cycle between 1.0x Default, 0.5x Speed Boost, and 0.0x Off",
+                    title = "Wi-Fi Priority Widget (2×1)",
+                    icon = Icons.TwoTone.Wifi,
+                    summary = "Tap card to toggle auto-switch • Tap Switch badge for #1 Wi-Fi in range",
                     trailing = {
                         FilledTonalButton(
                             onClick = {
                                 EssentialsWidgetsUpdater.requestPinWidget(
                                     context,
-                                    AnimatorWidgetProvider::class.java,
-                                    "Animation Speed Widget"
+                                    WifiPriorityWidgetProvider::class.java,
+                                    "Wi-Fi Priority Widget"
                                 )
                             },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
@@ -654,8 +654,8 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                     onClick = {
                         EssentialsWidgetsUpdater.requestPinWidget(
                             context,
-                            AnimatorWidgetProvider::class.java,
-                            "Animation Speed Widget"
+                            WifiPriorityWidgetProvider::class.java,
+                            "Wi-Fi Priority Widget"
                         )
                     }
                 )
