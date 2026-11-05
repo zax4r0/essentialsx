@@ -1,4 +1,4 @@
-# EssentialsX ⚡
+# DroidMode ⚡
 
 <p align="center">
   <strong>The essential power-user toolkit for Android, built with Jetpack Compose & Material 3.</strong>
@@ -17,7 +17,7 @@
 
 ## 📖 Overview
 
-**EssentialsX** (`eu.zax4r0.essentialsx`) is a lightweight, high-performance system utility tailored for modern Android devices. Designed with a clean, responsive Jetpack Compose Material 3 interface, EssentialsX consolidates vital device controls—keep-awake wake locks, multi-SIM / eSIM cellular mode controls, and custom animation scaling—into a unified, reactive interface.
+**DroidMode** (`dev.zax4r0.droidmode`) is a lightweight, high-performance system utility tailored for modern Android devices. Designed with a clean, responsive Jetpack Compose Material 3 interface, DroidMode consolidates vital device controls—keep-awake wake locks, multi-SIM / eSIM cellular mode controls, and custom animation scaling—into a unified, reactive interface.
 
 ---
 
@@ -68,23 +68,23 @@
 
 ## 🛠️ Permissions & Setup
 
-EssentialsX is designed with a tiered permission architecture:
+DroidMode is designed with a tiered permission architecture:
 
 | Feature | Required Permission | Setup Method |
 |:---|:---|:---|
 | **Caffeine** | None (`WAKE_LOCK`, `POST_NOTIFICATIONS`) | Ready out of the box |
-| **Animation Scales** | `WRITE_SECURE_SETTINGS` | Shizuku / Porter **OR** ADB command: <br/>`adb shell pm grant eu.zax4r0.essentialsx android.permission.WRITE_SECURE_SETTINGS` |
+| **Animation Scales** | `WRITE_SECURE_SETTINGS` | Shizuku / Porter **OR** ADB command: <br/>`adb shell pm grant dev.zax4r0.droidmode android.permission.WRITE_SECURE_SETTINGS` |
 | **Network Switch & Drawer** | Privileged Shell (`cmd phone`) | Shizuku **OR** Porter daemon |
 | **OTA Updates** | `REQUEST_INSTALL_PACKAGES` | Standard Android system prompt |
 
 ### Porter Integration
-EssentialsX seamlessly links with Porter daemon. If using Porter, add `eu.zax4r0.essentialsx` to your `porter.json` configuration:
+DroidMode seamlessly links with Porter daemon. If using Porter, add `dev.zax4r0.droidmode` to your `porter.json` configuration:
 
 ```json
 {
   "packages": [
     {
-      "packageName": "eu.zax4r0.essentialsx",
+      "packageName": "dev.zax4r0.droidmode",
       "certHash": "04a325910b157c2911d27bc2e9b540569a1a72aecc9c292c68078844d6dc4ee0",
       "permissions": ["all"]
     }
@@ -105,7 +105,7 @@ EssentialsX seamlessly links with Porter daemon. If using Porter, add `eu.zax4r0
 ```bash
 # Clone the repository
 git clone https://github.com/zax4r0/essentialsx.git
-cd essentialsx
+cd droidmode
 
 # Build debug APK
 ./gradlew assembleDebug

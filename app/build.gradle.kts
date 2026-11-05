@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "eu.zax4r0.essentialsx"
+    namespace = "dev.zax4r0.droidmode"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "eu.zax4r0.essentialsx"
+        applicationId = "dev.zax4r0.droidmode"
         minSdk = 26
         targetSdk = 36
         versionCode = 12

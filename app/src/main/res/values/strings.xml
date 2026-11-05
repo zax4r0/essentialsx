@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">EssentialsX</string>
+    <string name="app_name">DroidMode</string>
     <string name="porter_navigate_back">Back</string>
 
     <!-- Tiles -->
@@ -82,6 +82,6 @@
     <string name="widget_network_sim_desc">Open 5G/4G Network Mode Drawer or 1-tap switch Default Data SIM</string>
     <string name="widget_wifi_priority_label">Wi-Fi Priority Widget</string>
     <string name="widget_wifi_priority_desc">Toggle Wi-Fi Priority auto-switch or 1-tap switch to the #1 saved Wi-Fi in range</string>
-    <string name="widget_control_bar_label">EssentialsX 4×1 Control Bar</string>
+    <string name="widget_control_bar_label">DroidMode 4×1 Control Bar</string>
     <string name="widget_control_bar_desc">All-in-one dock for Caffeine, Smart Network, 5G/SIM &amp; Wi-Fi Priority</string>
 </resources>

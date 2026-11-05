@@ -24,7 +24,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
-        android:name=".EssentialsApplication"
+        android:name=".DroidModeApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -32,12 +32,12 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.EssentialsX">
+        android:theme="@style/Theme.DroidMode">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.EssentialsX">
+            android:theme="@style/Theme.DroidMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -97,7 +97,7 @@
             android:exported="true"
             android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.EssentialsX.Translucent" />
+            android:theme="@style/Theme.DroidMode.Translucent" />
 
         <!-- Smart Network Background Engine Service -->
         <service
@@ -128,7 +128,7 @@
             android:exported="true"
             android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.EssentialsX.Translucent">
+            android:theme="@style/Theme.DroidMode.Translucent">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
@@ -172,8 +172,8 @@
             android:label="@string/widget_caffeine_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_TOGGLE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_CYCLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_CAFFEINE_TOGGLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_CAFFEINE_CYCLE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -186,8 +186,8 @@
             android:label="@string/widget_smart_net_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TOGGLE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TRAY" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_SMARTNET_TOGGLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_SMARTNET_TRAY" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -200,8 +200,8 @@
             android:label="@string/widget_network_sim_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_NETWORK_DRAWER" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SIM_SWITCH" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_NETWORK_DRAWER" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_SIM_SWITCH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -214,8 +214,8 @@
             android:label="@string/widget_wifi_priority_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_TOGGLE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_SWITCH_NOW" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_TOGGLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_SWITCH_NOW" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -223,14 +223,14 @@
         </receiver>
 
         <receiver
-            android:name=".features.widgets.EssentialsBarWidgetProvider"
+            android:name=".features.widgets.DroidModeBarWidgetProvider"
             android:exported="true"
             android:label="@string/widget_control_bar_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_CAFFEINE_TOGGLE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_SMARTNET_TOGGLE" />
-                <action android:name="eu.zax4r0.essentialsx.widget.ACTION_WIFI_PRIORITY_TOGGLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_CAFFEINE_TOGGLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_SMARTNET_TOGGLE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_TOGGLE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

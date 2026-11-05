@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "EssentialsX"
+rootProject.name = "DroidMode"
 include(":app")
