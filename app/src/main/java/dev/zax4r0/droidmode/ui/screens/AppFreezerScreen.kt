@@ -59,11 +59,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -189,6 +187,17 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
         if (query.isBlank()) selected else selected.filter {
             it.label.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true)
         }
+    }
+
+    if (isAppPickerOpen) {
+        AppSelectionScreen(
+            apps = apps,
+            onBack = { isAppPickerOpen = false },
+            onToggleSelected = { pkg, isSelected ->
+                AppFreezerController.setSelected(context, pkg, isSelected)
+            }
+        )
+        return
     }
 
     PorterScaffold(
@@ -444,17 +453,6 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
             }
         }
     }
-
-    // App Picker Bottom Sheet
-    if (isAppPickerOpen) {
-        AppSelectionBottomSheet(
-            apps = apps,
-            onDismiss = { isAppPickerOpen = false },
-            onToggleSelected = { pkg, isSelected ->
-                AppFreezerController.setSelected(context, pkg, isSelected)
-            }
-        )
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -617,66 +615,54 @@ private fun FreezeGridItem(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppSelectionBottomSheet(
+private fun AppSelectionScreen(
     apps: List<FreezableApp>,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onToggleSelected: (String, Boolean) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    BackHandler(onBack = onBack)
     var pickerQuery by remember { mutableStateOf("") }
     val filteredPickerApps = remember(apps, pickerQuery) {
         if (pickerQuery.isBlank()) apps else apps.filter {
             it.label.contains(pickerQuery, ignoreCase = true) || it.packageName.contains(pickerQuery, ignoreCase = true)
         }
     }
+    val selectedCount = remember(apps) { apps.count { it.isSelected } }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
+    PorterScaffold(
+        title = "Select Apps",
+        onBack = onBack,
+        titleBadge = "$selectedCount selected",
+        actions = {
+            FilledTonalButton(onClick = onBack) {
+                Text("Done")
+            }
+        }
+    ) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp)
+                .padding(padding)
+                .fillMaxSize()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Select Apps for Freezer",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "${apps.count { it.isSelected }} selected",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
             PorterSearchBar(
                 query = pickerQuery,
                 onQueryChange = { pickerQuery = it },
-                placeholder = "Search installed apps…"
+                placeholder = "Search ${apps.size} installed apps…"
             )
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(480.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 items(filteredPickerApps, key = { it.packageName }) { app ->
                     val context = LocalContext.current
                     val icon = remember(app.packageName) {
                         runCatching {
-                            context.packageManager.getApplicationIcon(app.packageName).toBitmap(72, 72).asImageBitmap()
+                            context.packageManager.getApplicationIcon(app.packageName).toBitmap(96, 96).asImageBitmap()
                         }.getOrNull()
                     }
                     Row(
@@ -684,23 +670,23 @@ private fun AppSelectionBottomSheet(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .combinedClickable(onClick = { onToggleSelected(app.packageName, !app.isSelected) })
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Checkbox(
                             checked = app.isSelected,
                             onCheckedChange = { onToggleSelected(app.packageName, it) }
                         )
                         if (icon != null) {
-                            Image(icon, null, Modifier.size(38.dp))
+                            Image(icon, null, Modifier.size(42.dp))
                         } else {
-                            Icon(Icons.TwoTone.AcUnit, null, Modifier.size(38.dp))
+                            Icon(Icons.TwoTone.AcUnit, null, Modifier.size(42.dp))
                         }
                         Column(Modifier.weight(1f)) {
                             Text(
                                 app.label,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -714,25 +700,19 @@ private fun AppSelectionBottomSheet(
                             )
                         }
                         if (app.isFrozen) {
-                            Icon(
-                                Icons.TwoTone.CheckCircle,
-                                "Frozen",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ) {
+                                Text(
+                                    "Frozen",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(onClick = onDismiss) {
-                    Text("Done")
                 }
             }
         }
