@@ -24,13 +24,10 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Required for the user-facing installed-app picker. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-    <uses-permission android:name="com.sameerasw.essentials.permission.EXTERNAL_CONTROL" />
 
     <queries>
         <package android:name="dev.zax4r0.droidmode.sidecar" />
         <provider android:authorities="dev.zax4r0.droidmode.sidecar.provider" />
-        <package android:name="com.sameerasw.essentials" />
-        <provider android:authorities="com.sameerasw.essentials.external" />
     </queries>
 
     <application
@@ -263,7 +260,6 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="dev.zax4r0.droidmode.widget.ACTION_APP_FREEZER_TOGGLE" />
-                <action android:name="dev.zax4r0.droidmode.action.IMPORT_FROM_ESSENTIALS" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

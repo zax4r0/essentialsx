@@ -42,7 +42,6 @@ object DroidModeWidgetsUpdater {
     const val ACTION_WIFI_PRIORITY_TOGGLE = "dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_TOGGLE"
     const val ACTION_WIFI_PRIORITY_SWITCH_NOW = "dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_SWITCH_NOW"
     const val ACTION_APP_FREEZER_TOGGLE = "dev.zax4r0.droidmode.widget.ACTION_APP_FREEZER_TOGGLE"
-    const val ACTION_IMPORT_FROM_ESSENTIALS = "dev.zax4r0.droidmode.action.IMPORT_FROM_ESSENTIALS"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -200,14 +199,6 @@ object DroidModeWidgetsUpdater {
                 scope.launch {
                     AppFreezerController.refresh(appCtx)
                     AppFreezerController.performBulkAction(appCtx)
-                    updateAll(appCtx)
-                }
-            }
-            ACTION_IMPORT_FROM_ESSENTIALS -> {
-                AppFreezerController.init(appCtx)
-                scope.launch {
-                    val count = AppFreezerController.importFromEssentials(appCtx)
-                    Toast.makeText(appCtx, "Imported $count apps from Essentials", Toast.LENGTH_SHORT).show()
                     updateAll(appCtx)
                 }
             }
