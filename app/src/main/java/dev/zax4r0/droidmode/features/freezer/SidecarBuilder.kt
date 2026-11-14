@@ -140,15 +140,14 @@ object SidecarBuilder {
                     .build()
                     .sign()
 
-                // 5. Install via Shizuku
-                val installCommand = "pm install -r -d ${signedFile.absolutePath}"
-                val installResult = ShizukuHelper.runCommand(installCommand)
-                if (!installResult) {
-                    return@withContext Result.failure(Exception("Failed to install sidecar via Shizuku"))
+                // 5. Install via Shizuku stream
+                val userId = android.os.Process.myUid() / 100_000
+                val (installSuccess, installMessage) = ShizukuHelper.installApk(signedFile, userId)
+                if (!installSuccess) {
+                    return@withContext Result.failure(Exception("Shizuku install failed: $installMessage"))
                 }
 
                 // 6. Sync enabled states for each component
-                val userId = android.os.Process.myUid() / 100_000
                 for (app in apps) {
                     val comp = getFullComponent(app.packageName)
                     if (app.isFrozen) {

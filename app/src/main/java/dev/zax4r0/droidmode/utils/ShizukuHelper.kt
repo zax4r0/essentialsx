@@ -119,4 +119,32 @@ object ShizukuHelper {
             null
         }
     }
+
+    fun installApk(file: java.io.File, userId: Int = android.os.Process.myUid() / 100_000): Pair<Boolean, String> {
+        if (!hasPorterPermission()) return false to "Shizuku permission not granted"
+        val tmpPath = "/data/local/tmp/sidecar_install_${System.currentTimeMillis()}.apk"
+        val cmd = "cat > '$tmpPath' && chmod 644 '$tmpPath' && pm install -r -d --user $userId '$tmpPath'; RET=\$?; rm -f '$tmpPath'; exit \$RET"
+        return try {
+            val process = startRemoteProcess(arrayOf("sh", "-c", cmd), null, "/")
+            file.inputStream().use { input ->
+                input.copyTo(process.outputStream)
+            }
+            process.outputStream.flush()
+            process.outputStream.close()
+
+            val stdout = process.inputStream.bufferedReader().use { it.readText() }
+            val stderr = process.errorStream.bufferedReader().use { it.readText() }
+            val code = process.waitFor()
+            val output = (stdout + "\n" + stderr).trim()
+            if (code != 0) {
+                Log.e(TAG, "installApk failed (code $code): $output")
+                false to (if (output.isNotBlank()) output else "Exit code $code")
+            } else {
+                true to output
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "installApk exception", e)
+            false to (e.message ?: "Exception during install")
+        }
+    }
 }
