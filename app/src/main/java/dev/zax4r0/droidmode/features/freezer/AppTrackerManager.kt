@@ -31,6 +31,11 @@ object AppTrackerManager {
     private val foregroundConfirmed = ConcurrentHashMap<String, Boolean>()
     private val launchTimestamp = ConcurrentHashMap<String, Long>()
 
+    data class ForegroundInfo(
+        val packageName: String?,
+        val className: String?
+    )
+
     fun hasUsageStatsPermission(context: Context): Boolean {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
         val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -132,33 +137,56 @@ object AppTrackerManager {
         val awayCount = ConcurrentHashMap<String, Int>()
 
         while (scope.isActive && monitoredPackages.isNotEmpty()) {
-            delay(750)
+            delay(500)
             if (monitoredPackages.isEmpty()) break
 
-            val currentFg = getForegroundPackage(context)
+            val fgInfo = getForegroundInfo(context)
             val now = System.currentTimeMillis()
             val pkgs = monitoredPackages.toList()
 
             for (pkg in pkgs) {
-                val isFg = (currentFg == pkg)
+                val isFg = (fgInfo.packageName == pkg)
                 if (isFg) {
+                    val wasConfirmed = foregroundConfirmed[pkg] == true
                     foregroundConfirmed[pkg] = true
                     awayCount[pkg] = 0
+
+                    if (!wasConfirmed) {
+                        // The app has ACTUALLY opened and cleared any Native App Lock screen!
+                        // ONLY NOW do we swap / hide the sidecar alias!
+                        Log.d(TAG, "App $pkg confirmed in foreground. Hiding sidecar alias.")
+                        if (SidecarBuilder.isSidecarInstalled(context)) {
+                            SidecarBuilder.syncAliasState(context, pkg, false)
+                        }
+                    }
+                } else if (isAppLockActivity(fgInfo)) {
+                    // Native App Lock biometric or PIN drawer is currently being displayed!
+                    Log.d(TAG, "Native App Lock prompt active for $pkg. Waiting for user authentication…")
+                    awayCount[pkg] = 0
+                    // Keep waiting; do not freeze, do not hide sidecar alias yet!
                 } else {
                     val wasFg = foregroundConfirmed[pkg] == true
                     val started = launchTimestamp[pkg] ?: now
 
                     if (wasFg) {
+                        // Was previously in foreground, now user exited (Home or switched apps)
                         val count = (awayCount[pkg] ?: 0) + 1
                         awayCount[pkg] = count
 
-                        val isHome = isLauncher(context, currentFg)
+                        val isHome = isLauncher(context, fgInfo.packageName)
                         if (isHome || count >= 2) {
-                            Log.d(TAG, "App $pkg left foreground (currentFg=$currentFg, isHome=$isHome). Re-freezing.")
+                            Log.d(TAG, "App $pkg left foreground (currentFg=${fgInfo.packageName}, isHome=$isHome). Auto-freezing.")
                             freezeAndClean(context, pkg)
                         }
                     } else {
-                        if (now - started > 12_000) {
+                        // Never entered foreground yet.
+                        val isHome = isLauncher(context, fgInfo.packageName)
+                        if (isHome) {
+                            // User backed out or cancelled App Lock before authenticating!
+                            Log.d(TAG, "User returned to launcher before $pkg opened (cancelled App Lock). Re-freezing.")
+                            freezeAndClean(context, pkg)
+                        } else if (now - started > 45_000) {
+                            // 45s safety timeout
                             Log.w(TAG, "App $pkg never reached foreground within timeout. Safety re-freezing.")
                             freezeAndClean(context, pkg)
                         }
@@ -193,33 +221,45 @@ object AppTrackerManager {
         }
     }
 
-    fun getForegroundPackage(context: Context): String? {
+    fun getForegroundInfo(context: Context): ForegroundInfo {
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
         if (usageStatsManager != null && hasUsageStatsPermission(context)) {
             val time = System.currentTimeMillis()
             val events = usageStatsManager.queryEvents(time - 10_000, time)
             val event = UsageEvents.Event()
             var latestPkg: String? = null
+            var latestClass: String? = null
             var latestTime = 0L
 
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
                 if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && event.timeStamp >= latestTime) {
                     latestPkg = event.packageName
+                    latestClass = event.className
                     latestTime = event.timeStamp
                 }
             }
-            if (latestPkg != null) return latestPkg
+            if (latestPkg != null) return ForegroundInfo(latestPkg, latestClass)
         }
 
-        return getForegroundPackageFallback()
+        return getForegroundInfoFallback()
     }
 
-    private fun getForegroundPackageFallback(): String? {
-        if (!ShizukuHelper.hasPorterPermission()) return null
-        val output = ShizukuHelper.runCommandWithOutput("dumpsys activity activities") ?: return null
-        val match = Regex("""topResumedActivity=ActivityRecord\{[^ ]+ [^ ]+ ([^/]+)/""").find(output)
-        return match?.groupValues?.get(1)
+    private fun getForegroundInfoFallback(): ForegroundInfo {
+        if (!ShizukuHelper.hasPorterPermission()) return ForegroundInfo(null, null)
+        val output = ShizukuHelper.runCommandWithOutput("dumpsys activity activities") ?: return ForegroundInfo(null, null)
+        val match = Regex("""topResumedActivity=ActivityRecord\{[^ ]+ [^ ]+ ([^/]+)/([^ ]+)""").find(output)
+        return ForegroundInfo(match?.groupValues?.get(1), match?.groupValues?.get(2))
+    }
+
+    private fun isAppLockActivity(info: ForegroundInfo): Boolean {
+        val pkg = info.packageName ?: return false
+        val cls = info.className ?: ""
+        // Pixel native app lock uses package android with LockedAppActivity
+        return (pkg == "android" && cls.contains("LockedAppActivity", ignoreCase = true)) ||
+               cls.contains("ConfirmDeviceCredential", ignoreCase = true) ||
+               cls.contains("BiometricPrompt", ignoreCase = true) ||
+               (pkg == "android" && cls.isBlank())
     }
 
     private fun isLauncher(context: Context, packageName: String?): Boolean {

@@ -422,7 +422,7 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                                 scope.launch {
                                     if (app.isFrozen) {
                                         Toast.makeText(context, "Unfreezing ${app.label}…", Toast.LENGTH_SHORT).show()
-                                        AppFreezerController.setFrozen(context, app.packageName, false)
+                                        AppFreezerController.setFrozen(context, app.packageName, false, syncAliasOnUnfreeze = false)
                                         delay(150)
                                     }
                                     val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)

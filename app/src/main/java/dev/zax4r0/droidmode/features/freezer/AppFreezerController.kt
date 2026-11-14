@@ -127,7 +127,12 @@ object AppFreezerController {
         DroidModeWidgetsUpdater.updateAll(context.applicationContext)
     }
 
-    suspend fun setFrozen(context: Context, packageName: String, frozen: Boolean): Boolean =
+    suspend fun setFrozen(
+        context: Context,
+        packageName: String,
+        frozen: Boolean,
+        syncAliasOnUnfreeze: Boolean = true
+    ): Boolean =
         withContext(Dispatchers.IO) {
             if (!validPackageName(packageName) || packageName == context.packageName) return@withContext false
             if (!ShizukuHelper.hasPorterPermission()) return@withContext false
@@ -148,7 +153,9 @@ object AppFreezerController {
                         if (it.packageName == packageName) it.copy(isFrozen = frozen) else it
                     }
                     if (SidecarBuilder.isSidecarInstalled(context)) {
-                        SidecarBuilder.syncAliasState(context, packageName, frozen)
+                        if (frozen || syncAliasOnUnfreeze) {
+                            SidecarBuilder.syncAliasState(context, packageName, frozen)
+                        }
                     }
                     DroidModeWidgetsUpdater.updateAll(context.applicationContext)
                 }

@@ -37,7 +37,13 @@ class UnfreezeAndLaunchActivity : Activity() {
             // Auto-grant usage stats permission via Shizuku if needed
             AppTrackerManager.ensureUsageStatsPermission(this@UnfreezeAndLaunchActivity)
 
-            val unfreezeSuccess = AppFreezerController.setFrozen(this@UnfreezeAndLaunchActivity, targetPkg, false)
+            // Unfreeze package without prematurely hiding sidecar alias (alias is hidden only after app is verified in foreground)
+            val unfreezeSuccess = AppFreezerController.setFrozen(
+                this@UnfreezeAndLaunchActivity,
+                targetPkg,
+                frozen = false,
+                syncAliasOnUnfreeze = false
+            )
             if (unfreezeSuccess) {
                 var launchIntent = packageManager.getLaunchIntentForPackage(targetPkg)
                 var retries = 0
