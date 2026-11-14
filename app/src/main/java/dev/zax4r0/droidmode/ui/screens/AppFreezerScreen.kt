@@ -1,5 +1,6 @@
 package dev.zax4r0.droidmode.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.AcUnit
+import androidx.compose.material.icons.twotone.Apps
 import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.PlayArrow
 import androidx.compose.material3.Button
@@ -27,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -52,6 +55,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.zax4r0.droidmode.features.freezer.AppFreezerController
 import dev.zax4r0.droidmode.features.freezer.FreezableApp
+import dev.zax4r0.droidmode.features.freezer.SidecarBuilder
 import dev.zax4r0.droidmode.features.widgets.AppFreezerWidgetProvider
 import dev.zax4r0.droidmode.features.widgets.DroidModeWidgetsUpdater
 import dev.zax4r0.droidmode.ui.PorterScaffold
@@ -69,13 +73,23 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
     val operation by AppFreezerController.operation.collectAsState()
     val hasPermission by ShizukuHelper.hasPermission.collectAsState()
     var query by remember { mutableStateOf("") }
+    var isBuildingSidecar by remember { mutableStateOf(false) }
+    var sidecarInstalled by remember { mutableStateOf(SidecarBuilder.isSidecarInstalled(context)) }
 
     if (onBack != null) BackHandler(onBack = onBack)
 
-    LaunchedEffect(Unit) { AppFreezerController.refresh(context) }
+    LaunchedEffect(Unit) {
+        AppFreezerController.refresh(context)
+        sidecarInstalled = SidecarBuilder.isSidecarInstalled(context)
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) scope.launch { AppFreezerController.refresh(context) }
+            if (event == Lifecycle.Event.ON_RESUME) {
+                scope.launch {
+                    AppFreezerController.refresh(context)
+                    sidecarInstalled = SidecarBuilder.isSidecarInstalled(context)
+                }
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -95,13 +109,13 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Card(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Keep frozen apps in your launcher", fontWeight = FontWeight.SemiBold)
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("True App Freezer (pm disable-user)", fontWeight = FontWeight.SemiBold)
                     Text(
-                        "DroidMode suspends apps through Shizuku. Their original icons stay in the app tray and compatible launchers show them greyed out. Tap a grey icon to use Android’s Unsuspend action.",
+                        "Completely disables selected apps with Shizuku. Apps cannot run, start services, or drain battery until unfrozen.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -114,14 +128,14 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                             Spacer(Modifier.size(8.dp))
                             Text(if (selected.isNotEmpty() && selected.all { it.isFrozen }) "Unfreeze all" else "Freeze selected")
                         }
-                        Button(
+                        OutlinedButton(
                             enabled = selected.isNotEmpty(),
                             onClick = {
                                 DroidModeWidgetsUpdater.requestPinWidget(
                                     context, AppFreezerWidgetProvider::class.java, "App Freezer"
                                 )
                             }
-                        ) { Text("Add widget") }
+                        ) { Text("Widget") }
                     }
                     if (!hasPermission) {
                         Text(
@@ -129,6 +143,57 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("App Drawer Greyscale Icons", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (sidecarInstalled) "Sidecar Active" else "Not installed",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (sidecarInstalled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Text(
+                        "Generates a Sidecar companion app with greyscale launcher icons. Tapping a greyscale icon immediately unfreezes and launches the app.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = hasPermission && selected.isNotEmpty() && !isBuildingSidecar,
+                        onClick = {
+                            scope.launch {
+                                isBuildingSidecar = true
+                                val result = SidecarBuilder.buildAndInstallSidecar(context, selected)
+                                isBuildingSidecar = false
+                                sidecarInstalled = SidecarBuilder.isSidecarInstalled(context)
+                                if (result.isSuccess) {
+                                    Toast.makeText(context, "Sidecar synced with ${result.getOrNull()} drawer icons!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Sidecar error: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    ) {
+                        if (isBuildingSidecar) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.size(8.dp))
+                            Text("Building & Installing Sidecar…")
+                        } else {
+                            Icon(Icons.TwoTone.Apps, null, Modifier.size(18.dp))
+                            Spacer(Modifier.size(8.dp))
+                            Text(if (sidecarInstalled) "Sync Drawer Icons" else "Build & Install Drawer Icons")
+                        }
                     }
                 }
             }

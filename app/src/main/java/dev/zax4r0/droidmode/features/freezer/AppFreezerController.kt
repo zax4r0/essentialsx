@@ -68,7 +68,7 @@ object AppFreezerController {
 
             val packageNames = (launchable.map { it.activityInfo.packageName } + selected)
                 .asSequence()
-                .filter { it != appContext.packageName }
+                .filter { it != appContext.packageName && it != SidecarBuilder.SIDECAR_PACKAGE }
                 .distinct()
                 .toList()
 
@@ -79,7 +79,7 @@ object AppFreezerController {
                         packageName = packageName,
                         label = pm.getApplicationLabel(info).toString(),
                         isSelected = packageName in selected,
-                        isFrozen = isSuspended(info)
+                        isFrozen = isPackageFrozen(pm, packageName, info)
                     )
                 }.getOrNull()
             }.sortedWith(
@@ -113,17 +113,21 @@ object AppFreezerController {
 
             _operation.value = if (frozen) "Freezing…" else "Unfreezing…"
             try {
-                val success = setSuspendedWithShizuku(packageName, frozen) ||
+                val userId = currentUserId()
+                val success = setEnabledWithShizuku(packageName, !frozen) ||
                     ShizukuHelper.runCommand(
                         if (frozen) {
-                            "am force-stop $packageName; pm suspend --user ${currentUserId()} $packageName"
+                            "am force-stop $packageName; pm disable-user --user $userId $packageName"
                         } else {
-                            "pm unsuspend --user ${currentUserId()} $packageName"
+                            "pm enable --user $userId $packageName"
                         }
                     )
                 if (success) {
                     _apps.value = _apps.value.map {
                         if (it.packageName == packageName) it.copy(isFrozen = frozen) else it
+                    }
+                    if (SidecarBuilder.isSidecarInstalled(context)) {
+                        SidecarBuilder.syncAliasState(packageName, frozen, userId)
                     }
                     DroidModeWidgetsUpdater.updateAll(context.applicationContext)
                 }
@@ -160,8 +164,13 @@ object AppFreezerController {
     private fun validPackageName(packageName: String): Boolean =
         packageName.matches(Regex("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+"))
 
-    private fun isSuspended(info: ApplicationInfo): Boolean =
-        info.flags and ApplicationInfo.FLAG_SUSPENDED != 0
+    private fun isPackageFrozen(pm: PackageManager, packageName: String, info: ApplicationInfo): Boolean {
+        val setting = runCatching { pm.getApplicationEnabledSetting(packageName) }
+            .getOrDefault(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+        return setting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER ||
+            setting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
+            !info.enabled
+    }
 
     @Suppress("DEPRECATION")
     private fun getApplicationInfo(pm: PackageManager, packageName: String): ApplicationInfo =
@@ -177,59 +186,43 @@ object AppFreezerController {
     // Android assigns each user a block of 100,000 UIDs; the app's UID identifies its profile.
     private fun currentUserId(): Int = android.os.Process.myUid() / 100_000
 
-    /**
-     * Uses the package-manager binder so Android can attach its standard "Unsuspend" action to
-     * the grey launcher icon. The shell command fallback still preserves the launcher entry.
-     */
-    private fun setSuspendedWithShizuku(packageName: String, suspended: Boolean): Boolean {
-        // HiddenApiBypass supports Android 9+; Android 8/8.1 use the shell fallback above.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+    private fun setEnabledWithShizuku(packageName: String, enabled: Boolean): Boolean {
         return try {
-            if (suspended) ShizukuHelper.runCommand("am force-stop $packageName")
+            if (!enabled) ShizukuHelper.runCommand("am force-stop $packageName")
             val pm = getService("package", "android.content.pm.IPackageManager\$Stub") ?: return false
             val userId = currentUserId()
+            val newState = if (enabled) {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            } else {
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
+            }
             val caller = if (Shizuku.getUid() == 0) "dev.zax4r0.droidmode" else "com.android.shell"
-            val dialogInfo = if (suspended) buildUnsuspendDialogInfo() else null
 
             val attempts = listOf<() -> Any?>(
                 {
                     HiddenApiBypass.invoke(
-                        pm.javaClass, pm, "setPackagesSuspendedAsUser", arrayOf(packageName), suspended,
-                        null, null, dialogInfo, 0, caller, userId, userId
+                        pm.javaClass, pm, "setApplicationEnabledSetting", packageName, newState,
+                        0, userId, caller
                     )
                 },
                 {
                     HiddenApiBypass.invoke(
-                        pm.javaClass, pm, "setPackagesSuspendedAsUser", arrayOf(packageName), suspended,
-                        null, null, dialogInfo, caller, userId
-                    )
-                },
-                {
-                    HiddenApiBypass.invoke(
-                        pm.javaClass, pm, "setPackagesSuspendedAsUser", arrayOf(packageName), suspended,
-                        null, null, null, caller, userId
+                        pm.javaClass, pm, "setApplicationEnabledSetting", packageName, newState,
+                        0, userId
                     )
                 }
             )
             attempts.any { attempt ->
                 runCatching {
-                    val failed = attempt() as? Array<*>
-                    failed != null && failed.isEmpty()
+                    attempt()
+                    true
                 }.getOrDefault(false)
             }
         } catch (error: Throwable) {
-            Log.w(TAG, "Package suspension binder call failed", error)
+            Log.w(TAG, "Package setApplicationEnabledSetting binder call failed", error)
             false
         }
     }
-
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun buildUnsuspendDialogInfo(): Any? = runCatching {
-        val builderClass = Class.forName("android.content.pm.SuspendDialogInfo\$Builder")
-        val builder = HiddenApiBypass.newInstance(builderClass)
-        HiddenApiBypass.invoke(builderClass, builder, "setNeutralButtonAction", 1)
-        HiddenApiBypass.invoke(builderClass, builder, "build")
-    }.getOrNull()
 
     private fun getService(serviceName: String, stubClassName: String): Any? = runCatching {
         val binder = SystemServiceHelper.getSystemService(serviceName) ?: return null

@@ -1,0 +1,1 @@
+-keep class dev.zax4r0.droidmode.sidecar.** { *; }

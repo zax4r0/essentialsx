@@ -15,8 +15,8 @@ android {
         applicationId = "dev.zax4r0.droidmode"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.2.0-beta.8"
+        versionCode = 14
+        versionName = "1.2.0-beta.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -72,6 +72,13 @@ android {
     }
 }
 
+val copySidecarTemplateTask = tasks.register<Copy>("copySidecarTemplate") {
+    dependsOn(":sidecar:assembleRelease")
+    from(project(":sidecar").layout.buildDirectory.file("outputs/apk/release/sidecar-release-unsigned.apk"))
+    into("src/main/assets")
+    rename { "sidecar_template.apk" }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
@@ -96,6 +103,10 @@ dependencies {
 
     // Hidden API access (connect to a saved Wi-Fi network through Shizuku)
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
+
+    // On-device APK synthesis and signing for Freezer Sidecar
+    implementation("io.github.reandroid:ARSCLib:1.4.0")
+    implementation("com.android.tools.build:apksig:8.7.3")
 
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")

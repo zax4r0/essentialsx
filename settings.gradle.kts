@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "DroidMode"
 include(":app")
+include(":sidecar")
