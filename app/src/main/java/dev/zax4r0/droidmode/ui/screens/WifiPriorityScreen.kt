@@ -326,9 +326,9 @@ fun WifiPriorityScreen(bottomInset: Dp = 0.dp) {
             // ================= SAVED NETWORKS =================
             item(key = "category_networks") {
                 val label = if (isFiltering) {
-                    "Showing ${filteredNetworks.size} of ${networks.size} • Tap ↑ to promote & connect"
+                    "Showing ${filteredNetworks.size} of ${networks.size} • Tap promote to connect"
                 } else {
-                    "Saved networks • Drag or tap ↑ to prioritize & connect"
+                    "Saved networks • Drag or tap promote to prioritize & connect"
                 }
                 SettingsCategory(label)
             }

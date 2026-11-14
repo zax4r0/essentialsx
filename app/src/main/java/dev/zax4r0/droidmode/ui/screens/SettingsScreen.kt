@@ -658,7 +658,7 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                 SettingsItem(
                     title = "Network & Data SIM Widget (2×1)",
                     icon = Icons.TwoTone.CellTower,
-                    summary = "Tap card for 5G/4G Mode Drawer • Tap SIM ⇄ badge to switch Data SIM",
+                    summary = "Tap card for 5G/4G Mode Drawer • Tap SIM Switch badge to change Data SIM",
                     trailing = {
                         FilledTonalButton(
                             onClick = {

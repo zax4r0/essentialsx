@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.twotone.ArrowForward
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.*
 import androidx.compose.material3.*
@@ -164,7 +165,7 @@ fun HomeScreen(
                                 )
                             }
                             Text(
-                                text = if (isSmartNetEnabled) smartStatus else "Auto 5G/4G, Dual-SIM & Wi-Fi ↔ Data",
+                                text = if (isSmartNetEnabled) smartStatus else "Auto 5G/4G, Dual-SIM & Wi-Fi / Data",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (isSmartNetEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -187,7 +188,7 @@ fun HomeScreen(
                         FilterChip(
                             selected = autoWifiData,
                             onClick = { SmartNetworkController.setAutoWifiDataEnabled(context, !autoWifiData) },
-                            label = { Text("Wi-Fi ↔ Data", style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("Wi-Fi / Data", style = MaterialTheme.typography.labelSmall) },
                             leadingIcon = if (autoWifiData) {
                                 { Icon(Icons.TwoTone.Check, null, Modifier.size(14.dp)) }
                             } else null
@@ -195,7 +196,7 @@ fun HomeScreen(
                         FilterChip(
                             selected = auto5g4g,
                             onClick = { SmartNetworkController.setAuto5g4gEnabled(context, !auto5g4g) },
-                            label = { Text("5G ↔ 4G", style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("5G / 4G", style = MaterialTheme.typography.labelSmall) },
                             leadingIcon = if (auto5g4g) {
                                 { Icon(Icons.TwoTone.Check, null, Modifier.size(14.dp)) }
                             } else null
@@ -302,7 +303,14 @@ fun HomeScreen(
                             }
                             AssistChip(
                                 onClick = { onNavigateToTab(3) },
-                                label = { Text("Reorder All →", style = MaterialTheme.typography.labelSmall) }
+                                label = { Text("Reorder All", style = MaterialTheme.typography.labelSmall) },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.TwoTone.ArrowForward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             )
                         }
                     }
@@ -497,7 +505,17 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                             ) {
-                                Text("❄️ Freeze All", style = MaterialTheme.typography.labelSmall)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.TwoTone.AcUnit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text("Freeze All", style = MaterialTheme.typography.labelSmall)
+                                }
                             }
 
                             Button(
@@ -510,7 +528,17 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                             ) {
-                                Text("⚡ Thaw All", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.TwoTone.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text("Thaw All", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

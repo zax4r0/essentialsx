@@ -265,10 +265,10 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = {
-                            Text(if (hasUsageAccess) "Usage Access: Granted ✓" else "Grant Usage Access (Shizuku)")
+                            Text(if (hasUsageAccess) "Usage Access: Granted" else "Grant Usage Access (Shizuku)")
                         },
                         leadingIcon = {
-                            Icon(Icons.TwoTone.Security, null)
+                            Icon(if (hasUsageAccess) Icons.TwoTone.CheckCircle else Icons.TwoTone.Security, null)
                         },
                         onClick = {
                             scope.launch {

@@ -125,7 +125,7 @@ object DroidModeWidgetsUpdater {
     ): WidgetCardModel {
         return WidgetCardModel(
             title = if (isEnabled) "Smart Net • ON" else "Smart Network",
-            subtitle = if (isEnabled) status else "Tap to start • Tray ⚙",
+            subtitle = if (isEnabled) status else "Tap to start • Open Tray",
             badge = "Tray",
             isActive = isEnabled
         )
