@@ -318,7 +318,7 @@ fun HomeScreen(
 
                 BentoCardContainer(
                     isActive = targetSim != null,
-                    onClickHeader = { onNavigateToTab(1) }
+                    onClickHeader = { onNavigateToTab(2) }
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -360,7 +360,7 @@ fun HomeScreen(
                             )
                         }
                         FilledTonalButton(
-                            onClick = { onNavigateToTab(1) },
+                            onClick = { onNavigateToTab(2) },
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text("All (${sims.size})", style = MaterialTheme.typography.labelSmall)
@@ -479,7 +479,40 @@ fun HomeScreen(
                                 color = if (frozenAppCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        FilledTonalButton(onClick = onOpenFreezer) { Text("Open") }
+                        FilledTonalButton(onClick = onOpenFreezer) { Text("Grid") }
+                    }
+
+                    if (selectedFreezerApps.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        AppFreezerController.freezeAll(context)
+                                    }
+                                },
+                                enabled = hasPorterPermission && frozenAppCount < selectedFreezerApps.size,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                            ) {
+                                Text("❄️ Freeze All", style = MaterialTheme.typography.labelSmall)
+                            }
+
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        AppFreezerController.unfreezeAll(context)
+                                    }
+                                },
+                                enabled = hasPorterPermission && frozenAppCount > 0,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                            ) {
+                                Text("⚡ Thaw All", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }

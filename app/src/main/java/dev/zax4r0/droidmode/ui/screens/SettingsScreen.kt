@@ -59,7 +59,16 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
     var showNetworkVariantDialog by remember { mutableStateOf(false) }
     var showSmartNetTileDialog by remember { mutableStateOf(false) }
     var showAnimatorVariantDialog by remember { mutableStateOf(false) }
+    var showAnimatorScreen by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+
+    if (showAnimatorScreen) {
+        AnimatorScreen(
+            bottomInset = bottomInset,
+            onBack = { showAnimatorScreen = false }
+        )
+        return
+    }
 
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -436,6 +445,20 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                     icon = Icons.TwoTone.AutoAwesome,
                     summary = "View changelog & new features in this release",
                     onClick = { UpdateManager.openWhatsNew() }
+                )
+            }
+
+            // ================= POWER TOOLS =================
+            item(key = "cat_power_tools") {
+                SettingsCategory("Power Tools")
+            }
+
+            item(key = "tool_animator") {
+                SettingsItem(
+                    title = "System Speed & Animation Scales",
+                    icon = Icons.TwoTone.Speed,
+                    summary = "Configure Window, Transition, Duration scales with Live Motion Sandbox",
+                    onClick = { showAnimatorScreen = true }
                 )
             }
 

@@ -154,6 +154,32 @@ object AppFreezerController {
             }
         }
 
+    suspend fun freezeAll(context: Context): Int = withContext(Dispatchers.IO) {
+        val selected = _apps.value.filter { it.isSelected && !it.isFrozen }
+        var changed = 0
+        selected.forEach { app ->
+            if (setFrozen(context, app.packageName, true)) changed++
+        }
+        if (SidecarBuilder.isSidecarInstalled(context)) {
+            SidecarBuilder.syncAllStates(context, _apps.value.filter { it.isSelected })
+        }
+        refresh(context)
+        changed
+    }
+
+    suspend fun unfreezeAll(context: Context): Int = withContext(Dispatchers.IO) {
+        val selected = _apps.value.filter { it.isSelected && it.isFrozen }
+        var changed = 0
+        selected.forEach { app ->
+            if (setFrozen(context, app.packageName, false)) changed++
+        }
+        if (SidecarBuilder.isSidecarInstalled(context)) {
+            SidecarBuilder.syncAllStates(context, _apps.value.filter { it.isSelected })
+        }
+        refresh(context)
+        changed
+    }
+
     suspend fun performBulkAction(context: Context): Pair<BulkFreezeAction, Int> {
         val selected = _apps.value.filter { it.isSelected }
         val action = nextBulkAction(selected.size, selected.count { it.isFrozen })

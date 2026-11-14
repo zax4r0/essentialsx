@@ -1,14 +1,19 @@
 package dev.zax4r0.droidmode.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.AutoAwesome
+import androidx.compose.material.icons.twotone.AcUnit
+import androidx.compose.material.icons.twotone.CellTower
 import androidx.compose.material.icons.twotone.Home
 import androidx.compose.material.icons.twotone.Settings
-import androidx.compose.material.icons.twotone.SimCard
 import androidx.compose.material.icons.twotone.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -31,14 +36,13 @@ import dev.zax4r0.droidmode.utils.UpdateManager
 fun MainScreen() {
     val context = LocalContext.current
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    var showFreezer by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val showWhatsNew by UpdateManager.showWhatsNew.collectAsState()
 
     val tabs = remember {
         listOf(
             FloatingTab("Home", Icons.TwoTone.Home),
-            FloatingTab("SIM", Icons.TwoTone.SimCard),
-            FloatingTab("Smart", Icons.TwoTone.AutoAwesome),
+            FloatingTab("Freezer", Icons.TwoTone.AcUnit),
+            FloatingTab("Cellular", Icons.TwoTone.CellTower),
             FloatingTab("Wi-Fi", Icons.TwoTone.Wifi),
             FloatingTab("Settings", Icons.TwoTone.Settings)
         )
@@ -54,31 +58,47 @@ fun MainScreen() {
         )
     }
 
+    // Graceful back handling: pressing Back on any sub-tab returns to Home first
+    BackHandler(enabled = selectedTab != 0) {
+        selectedTab = 0
+    }
+
     Box(Modifier.fillMaxSize()) {
-        if (showFreezer) {
-            AppFreezerScreen(onBack = { showFreezer = false })
-        } else when (selectedTab) {
-            0 -> HomeScreen(
-                bottomInset = FloatingTabBarClearance,
-                onNavigateToTab = { selectedTab = it },
-                onOpenFreezer = { showFreezer = true }
-            )
-            1 -> SimManagerScreen(bottomInset = FloatingTabBarClearance)
-            2 -> SmartNetworkScreen(bottomInset = FloatingTabBarClearance)
-            3 -> WifiPriorityScreen(bottomInset = FloatingTabBarClearance)
-            else -> SettingsScreen(bottomInset = FloatingTabBarClearance)
+        AnimatedContent(
+            targetState = selectedTab,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "mainTabTransition"
+        ) { tab ->
+            when (tab) {
+                0 -> HomeScreen(
+                    bottomInset = FloatingTabBarClearance,
+                    onNavigateToTab = { selectedTab = it },
+                    onOpenFreezer = { selectedTab = 1 }
+                )
+                1 -> AppFreezerScreen(
+                    bottomInset = FloatingTabBarClearance,
+                    onBack = { selectedTab = 0 }
+                )
+                2 -> CellularScreen(
+                    bottomInset = FloatingTabBarClearance
+                )
+                3 -> WifiPriorityScreen(
+                    bottomInset = FloatingTabBarClearance
+                )
+                else -> SettingsScreen(
+                    bottomInset = FloatingTabBarClearance
+                )
+            }
         }
 
-        if (!showFreezer) {
-            FloatingTabBar(
-                tabs = tabs,
-                selectedIndex = selectedTab,
-                onSelect = { selectedTab = it },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 12.dp)
-            )
-        }
+        FloatingTabBar(
+            tabs = tabs,
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 12.dp)
+        )
     }
 }

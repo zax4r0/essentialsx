@@ -29,8 +29,20 @@ import dev.zax4r0.droidmode.utils.QuickSettingsTileManager
 import dev.zax4r0.droidmode.utils.ShizukuHelper
 import kotlinx.coroutines.launch
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+
 @Composable
-fun AnimatorScreen(bottomInset: Dp = 0.dp) {
+fun AnimatorScreen(
+    bottomInset: Dp = 0.dp,
+    onBack: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -71,6 +83,7 @@ fun AnimatorScreen(bottomInset: Dp = 0.dp) {
 
     PorterScaffold(
         title = stringResource(R.string.animator_title),
+        onBack = onBack,
         titleBadge = if (hasPorterPermission) "Porter Ready" else null,
         actions = {
             IconButton(
@@ -244,6 +257,83 @@ fun AnimatorScreen(bottomInset: Dp = 0.dp) {
                     Icon(Icons.TwoTone.Refresh, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Reset All Scales to Default (1.0x)")
+                }
+            }
+
+            item(key = "sandbox_card") {
+                var isToggled by remember { mutableStateOf(false) }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Live Motion Sandbox",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Button(
+                                onClick = { isToggled = !isToggled },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(if (isToggled) "Reset" else "Test Speed")
+                            }
+                        }
+                        Text(
+                            "Tap 'Test Speed' to visually inspect your current system animation scales with real-time spring curves.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            this@Column.AnimatedVisibility(
+                                visible = isToggled,
+                                enter = slideInHorizontally() + fadeIn(),
+                                exit = slideOutHorizontally() + fadeOut()
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        "⚡ Fluid Motion Preview",
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            if (!isToggled) {
+                                Text(
+                                    "Tap 'Test Speed' to play",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

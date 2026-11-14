@@ -32,7 +32,10 @@ import dev.zax4r0.droidmode.utils.ShizukuHelper
 import kotlinx.coroutines.launch
 
 @Composable
-fun SmartNetworkScreen(bottomInset: Dp = 0.dp) {
+fun SmartNetworkScreen(
+    bottomInset: Dp = 0.dp,
+    includeScaffold: Boolean = true
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -99,18 +102,7 @@ fun SmartNetworkScreen(bottomInset: Dp = 0.dp) {
         )
     }
 
-    PorterScaffold(
-        title = stringResource(R.string.smart_net_title),
-        titleBadge = if (hasPorterPermission) "Porter Ready" else null,
-        actions = {
-            IconButton(
-                onClick = { scope.launch { NetworkModeController.refresh(context) } },
-                enabled = hasPorterPermission
-            ) {
-                Icon(Icons.TwoTone.Refresh, contentDescription = "Refresh")
-            }
-        }
-    ) { padding ->
+    val content: @Composable (PaddingValues) -> Unit = { padding ->
         LazyColumn(
             modifier = Modifier
                 .padding(padding)
@@ -224,6 +216,25 @@ fun SmartNetworkScreen(bottomInset: Dp = 0.dp) {
                 Spacer(Modifier.height(32.dp + bottomInset))
             }
         }
+    }
+
+    if (includeScaffold) {
+        PorterScaffold(
+            title = stringResource(R.string.smart_net_title),
+            titleBadge = if (hasPorterPermission) "Porter Ready" else null,
+            actions = {
+                IconButton(
+                    onClick = { scope.launch { NetworkModeController.refresh(context) } },
+                    enabled = hasPorterPermission
+                ) {
+                    Icon(Icons.TwoTone.Refresh, contentDescription = "Refresh")
+                }
+            }
+        ) { padding ->
+            content(padding)
+        }
+    } else {
+        content(PaddingValues(0.dp))
     }
 }
 

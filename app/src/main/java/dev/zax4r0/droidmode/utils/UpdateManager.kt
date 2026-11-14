@@ -147,39 +147,29 @@ object UpdateManager {
 
     fun getWhatsNewHighlights(version: String): List<WhatsNewItem> = listOf(
         WhatsNewItem(
-            badge = "App Freezer",
-            title = "True App Freezer with Sidecar Icons & Usage Tracking",
-            description = "Real package freezing (pm disable-user) via Shizuku with dynamic greyscale app drawer icons via Sidecar, intelligent foreground usage tracking, automatic re-freeze on exit or lock, Essentials-style 4-column grid, and 1-tap widget."
+            badge = "Full App UI/UX",
+            title = "First-Class Freezer Tab & Unified Cellular Hub",
+            description = "App Freezer is now elevated to a dedicated 1-tap bottom tab. SIM Manager and Smart Network Engine are unified into an intuitive Cellular Hub with instant sub-tab switching."
         ),
         WhatsNewItem(
-            badge = "UI & Tabs",
-            title = "Full-Width 5-Tab Bar & Bento Quick Control Home",
-            description = "Spacious full-width floating tab bar (Home, SIM, Smart, Wi-Fi, Settings ⚙️) + Bento Action Cards on Home for 1-tap control."
-        ),
-        WhatsNewItem(
-            badge = "Search & Filter",
-            title = "SIM / eSIM & Wi-Fi Instant Search",
-            description = "Search SIMs, travel eSIMs, carriers, or saved Wi-Fi SSIDs with live filter chips (Active, eSIM, Physical, In Range)."
-        ),
-        WhatsNewItem(
-            badge = "Widgets",
-            title = "Home Screen Widgets & 4×1 Control Bar",
-            description = "Pin Caffeine, Smart Network, 5G/SIM Drawer, Wi-Fi Priority, or the all-in-one 4×1 Control Bar directly to your Home Screen."
+            badge = "Home Cockpit",
+            title = "Instant 1-Tap Freeze & Thaw Action Cards",
+            description = "Home Dashboard now features direct 'Freeze All' and 'Thaw All' buttons right on the Bento card, plus live counts and Shizuku status."
         ),
         WhatsNewItem(
             badge = "Wi-Fi Priority",
-            title = "Immediate Wi-Fi Switch on Reorder",
-            description = "Dragging a Wi-Fi card or tapping ↑ immediately switches to the new #1 priority network in range with zero delay."
+            title = "Connected Wi-Fi Hero Card & Radar",
+            description = "New Hero card at the top of Wi-Fi Priority showing currently connected network, priority rank, and instant in-range nearby radar."
         ),
         WhatsNewItem(
-            badge = "OTA Engine",
-            title = "Seamless Shizuku & Background OTA Updates",
-            description = "Downloads in the background with live notifications and installs seamlessly via Porter/Shizuku or system installer."
+            badge = "Animator Sandbox",
+            title = "Live Interactive Motion Sandbox",
+            description = "Test system animation scales (0x, 0.5x, 1x) in real time with an interactive motion preview box directly inside Power Tools."
         ),
         WhatsNewItem(
-            badge = "Smart Net",
-            title = "5G+ / 4G+ Carrier Aggregation & Dead-Pack Guard",
-            description = "Detects multi-band Carrier Aggregation (MHz bandwidth) and verifies live HTTP 204 internet before & after SIM switches."
+            badge = "App Freezer",
+            title = "In-Place Selection & Sidecar Sync",
+            description = "App selection list maintains stable alphabetical position with zero jumping when toggling checkboxes. Sidecar launcher aliases sync seamlessly."
         )
     )
 
