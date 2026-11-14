@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -104,6 +105,60 @@ object AppFreezerController {
                 .thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }
         )
         DroidModeWidgetsUpdater.updateAll(context.applicationContext)
+    }
+
+    suspend fun importFromEssentials(context: Context): Int = withContext(Dispatchers.IO) {
+        val appContext = context.applicationContext
+        val imported = mutableSetOf<String>()
+
+        // 1. Try querying the original Essentials ContentProvider (settings/freeze_selected_apps)
+        runCatching {
+            val uri = Uri.parse("content://com.sameerasw.essentials.external/settings/freeze_selected_apps")
+            appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val valCol = cursor.getColumnIndex("value")
+                    if (valCol != -1) {
+                        val json = cursor.getString(valCol)
+                        if (!json.isNullOrBlank()) {
+                            val jsonArray = org.json.JSONArray(json)
+                            for (i in 0 until jsonArray.length()) {
+                                val obj = jsonArray.optJSONObject(i)
+                                val pkg = obj?.optString("packageName")
+                                if (!pkg.isNullOrBlank()) {
+                                    imported.add(pkg)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }.onFailure { Log.w(TAG, "ContentProvider query to Essentials failed", it) }
+
+        // 2. Fallback: discover disabled third-party packages for current user
+        if (imported.isEmpty() && ShizukuHelper.hasPorterPermission()) {
+            val userId = currentUserId()
+            val output = ShizukuHelper.runCommandWithOutput("pm list packages --user $userId -3 -d")
+            if (output != null) {
+                val pkgs = output.lineSequence()
+                    .filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }
+                    .filter { it.isNotBlank() && it != appContext.packageName && it != SidecarBuilder.SIDECAR_PACKAGE }
+                    .toSet()
+                imported.addAll(pkgs)
+            }
+        }
+
+        if (imported.isNotEmpty()) {
+            val currentSelected = selectedPackages(appContext).toMutableSet()
+            currentSelected.addAll(imported)
+            appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putStringSet(KEY_SELECTED, currentSelected)
+                .apply()
+            refresh(appContext)
+            DroidModeWidgetsUpdater.updateAll(appContext)
+        }
+        imported.size
     }
 
     suspend fun setFrozen(context: Context, packageName: String, frozen: Boolean): Boolean =

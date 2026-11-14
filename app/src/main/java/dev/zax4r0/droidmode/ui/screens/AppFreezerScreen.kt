@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.AcUnit
 import androidx.compose.material.icons.twotone.Apps
 import androidx.compose.material.icons.twotone.CheckCircle
+import androidx.compose.material.icons.twotone.FileDownload
 import androidx.compose.material.icons.twotone.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -136,6 +137,20 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                                 )
                             }
                         ) { Text("Widget") }
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = hasPermission,
+                        onClick = {
+                            scope.launch {
+                                val count = AppFreezerController.importFromEssentials(context)
+                                Toast.makeText(context, "Imported $count apps from Essentials", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Icon(Icons.TwoTone.FileDownload, null, Modifier.size(18.dp))
+                        Spacer(Modifier.size(8.dp))
+                        Text("Import List from Essentials")
                     }
                     if (!hasPermission) {
                         Text(
