@@ -23,13 +23,15 @@
 
 ## ✨ Features
 
-### ❄️ 1. True App Freezer (`pm disable-user` with Sidecar Drawer Icons)
+### ❄️ 1. True App Freezer (`pm disable-user` with Sidecar Drawer Icons & Usage Tracking)
 - **Real Freezing Engine**: Disables target packages using `pm disable-user` / `COMPONENT_ENABLED_STATE_DISABLED_USER` via Shizuku. Unlike package suspension (`pm suspend`) which leaves processes and services able to run in the background on modern Android, True Freezing completely prevents apps from running, starting background services, or consuming battery.
 - **Companion Sidecar Architecture**: Android removes launcher icons when apps are disabled. DroidMode solves this by synthesizing an on-device companion app (`dev.zax4r0.droidmode.sidecar`) that provides greyscale `<activity-alias>` entries inside the launcher's app drawer.
-- **Dynamic Visibility Sync**: Greyscale launcher icons appear automatically when an app is frozen, and hide automatically when unfrozen.
-- **One-Tap Unfreeze & Launch**: Tapping any greyscale icon directly in Pixel Launcher immediately disables the alias, unfreezes the real application via Shizuku, and launches it seamlessly.
+- **Flicker-Free Smooth Launch Splash**: Tapping a frozen app immediately displays a clean, themed launch screen with the app's icon, label, and progress indicator. The launcher drawer never flickers or reloads prematurely.
+- **Intelligent Foreground Tracking (`PACKAGE_USAGE_STATS`)**: Leverages Android's Usage Stats APIs (auto-granted via Shizuku) to detect when the launched app is actively in use in the foreground.
+- **Automatic Re-Freeze on Exit & Screen Lock**: Once you finish using the app (swipe Home, return to drawer, switch apps, or turn off the screen), DroidMode automatically re-freezes the app and restores its greyscale drawer icon.
+- **Essentials-Style 4-Column Grid UI**: Adaptive card grid with live frozen counts, greyscale dimming, snowflake freeze badges, single-tap launch, and long-press contextual menus.
+- **Full App Settings Backup & Restore**: Export and import all app preferences (Freezer, Caffeine, Smart Network, Wi-Fi Priority, Animator scales, and Update preferences) via standard JSON files using Android Storage Access Framework.
 - **One-Tap Home Screen Widget**: Resizable widget that freezes all selected apps with a single tap, and unfreezes the group on the next tap.
-- **Dynamic Import from Essentials**: Seamlessly imports existing freeze lists from the original Essentials app (`com.sameerasw.essentials`) with a single tap.
 
 ### ☕ 2. Caffeine (Keep Screen Awake)
 - **Zero elevated privileges needed**: Operates entirely in userland with Android's native WakeLock API.
@@ -132,7 +134,7 @@ DroidMode features a tiered permission architecture:
 | **Network Switch & SIM Drawer** | Privileged Telephony Shell (`cmd phone`) | Shizuku **OR** Porter daemon |
 | **App Freezer** | Privileged package manager (`pm disable-user`) | Shizuku **OR** Porter daemon |
 | **Drawer Greyscale Sidecar** | Silent package installer (`pm install`) | Shizuku streaming install |
-| **Import from Essentials** | `com.sameerasw.essentials.permission.EXTERNAL_CONTROL` | Runtime grant / Automatic via Shizuku |
+| **Foreground App Tracking** | `PACKAGE_USAGE_STATS` | Automatic via Shizuku (`appops`) **OR** Usage Access Settings |
 | **OTA Updates** | `REQUEST_INSTALL_PACKAGES` | Standard Android system prompt |
 
 ---

@@ -33,6 +33,26 @@ object AppFreezerController {
     private const val TAG = "AppFreezerController"
     private const val PREFS = "app_freezer"
     private const val KEY_SELECTED = "selected_packages"
+    const val KEY_AUTO_FREEZE_EXIT = "auto_freeze_on_exit"
+    const val KEY_AUTO_FREEZE_LOCK = "auto_freeze_on_lock"
+
+    fun isAutoFreezeOnExit(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AUTO_FREEZE_EXIT, true)
+
+    fun setAutoFreezeOnExit(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_AUTO_FREEZE_EXIT, enabled).apply()
+    }
+
+    fun isAutoFreezeOnLock(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AUTO_FREEZE_LOCK, true)
+
+    fun setAutoFreezeOnLock(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_AUTO_FREEZE_LOCK, enabled).apply()
+    }
 
     private val _apps = MutableStateFlow<List<FreezableApp>>(emptyList())
     val apps: StateFlow<List<FreezableApp>> = _apps

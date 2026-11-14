@@ -15,8 +15,8 @@ android {
         applicationId = "dev.zax4r0.droidmode"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.2.0-beta.15"
+        versionCode = 21
+        versionName = "1.2.0-beta.16"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -77,6 +77,10 @@ val copySidecarTemplateTask = tasks.register<Copy>("copySidecarTemplate") {
     from(project(":sidecar").layout.buildDirectory.file("outputs/apk/release/sidecar-release-unsigned.apk"))
     into("src/main/assets")
     rename { "sidecar_template.apk" }
+}
+
+tasks.named("preBuild") {
+    dependsOn(copySidecarTemplateTask)
 }
 
 dependencies {

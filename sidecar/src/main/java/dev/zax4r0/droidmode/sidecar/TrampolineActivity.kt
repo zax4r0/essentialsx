@@ -15,20 +15,6 @@ class TrampolineActivity : Activity() {
             ?: getTargetPackageFromMeta(aliasComp)
             ?: componentNameToPackage(aliasComp?.className)
 
-        // Immediately disable the tapped launcher alias so it hides from the launcher app drawer
-        if (aliasComp != null && aliasComp.className != TrampolineActivity::class.java.name) {
-            try {
-                packageManager.setComponentEnabledSetting(
-                    aliasComp,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP
-                )
-                Log.d("TrampolineActivity", "Disabled alias $aliasComp on tap")
-            } catch (e: Exception) {
-                Log.e("TrampolineActivity", "Failed to disable alias $aliasComp on tap", e)
-            }
-        }
-
         if (!targetPkg.isNullOrBlank()) {
             val forward = Intent().apply {
                 component = ComponentName(
@@ -45,6 +31,7 @@ class TrampolineActivity : Activity() {
             }
         }
         finish()
+        overridePendingTransition(0, 0)
     }
 
     private fun getTargetPackageFromMeta(aliasComp: ComponentName?): String? {

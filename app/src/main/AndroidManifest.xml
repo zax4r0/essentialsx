@@ -22,7 +22,8 @@
     <!-- OTA update permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Required for the user-facing installed-app picker. -->
+    <!-- Freezer & Usage Stats permissions -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
     <queries>
@@ -148,7 +149,7 @@
             android:exported="true"
             android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.DroidMode.Translucent" />
+            android:theme="@style/Theme.DroidMode.LaunchSplash" />
 
         <!-- Quick Settings Tile: Custom Animator -->
         <service

@@ -41,7 +41,9 @@ import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.FileDownload
 import androidx.compose.material.icons.twotone.FileUpload
 import androidx.compose.material.icons.twotone.Info
+import androidx.compose.material.icons.twotone.MoreVert
 import androidx.compose.material.icons.twotone.PlayArrow
+import androidx.compose.material.icons.twotone.Security
 import androidx.compose.material.icons.twotone.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,6 +55,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -89,6 +92,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.zax4r0.droidmode.features.freezer.AppFreezerController
+import dev.zax4r0.droidmode.features.freezer.AppTrackerManager
 import dev.zax4r0.droidmode.features.freezer.FreezableApp
 import dev.zax4r0.droidmode.features.freezer.SidecarBuilder
 import dev.zax4r0.droidmode.features.widgets.AppFreezerWidgetProvider
@@ -114,6 +118,10 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
     var isBuildingSidecar by remember { mutableStateOf(false) }
     var sidecarInstalled by remember { mutableStateOf(SidecarBuilder.isSidecarInstalled(context)) }
     var isAppPickerOpen by remember { mutableStateOf(false) }
+    var autoFreezeExit by remember { mutableStateOf(AppFreezerController.isAutoFreezeOnExit(context)) }
+    var autoFreezeLock by remember { mutableStateOf(AppFreezerController.isAutoFreezeOnLock(context)) }
+    var hasUsageAccess by remember { mutableStateOf(AppTrackerManager.hasUsageStatsPermission(context)) }
+    var showMoreMenu by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -198,6 +206,74 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                 onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }
             ) {
                 Icon(Icons.TwoTone.FileDownload, "Import Settings Backup")
+            }
+            Box {
+                IconButton(onClick = { showMoreMenu = true }) {
+                    Icon(Icons.TwoTone.MoreVert, "More Options")
+                }
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Checkbox(
+                                    checked = autoFreezeExit,
+                                    onCheckedChange = null
+                                )
+                                Text("Auto-freeze on app exit")
+                            }
+                        },
+                        onClick = {
+                            val newVal = !autoFreezeExit
+                            autoFreezeExit = newVal
+                            AppFreezerController.setAutoFreezeOnExit(context, newVal)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Checkbox(
+                                    checked = autoFreezeLock,
+                                    onCheckedChange = null
+                                )
+                                Text("Auto-freeze on screen lock")
+                            }
+                        },
+                        onClick = {
+                            val newVal = !autoFreezeLock
+                            autoFreezeLock = newVal
+                            AppFreezerController.setAutoFreezeOnLock(context, newVal)
+                        }
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = {
+                            Text(if (hasUsageAccess) "Usage Access: Granted ✓" else "Grant Usage Access (Shizuku)")
+                        },
+                        leadingIcon = {
+                            Icon(Icons.TwoTone.Security, null)
+                        },
+                        onClick = {
+                            scope.launch {
+                                val granted = AppTrackerManager.ensureUsageStatsPermission(context)
+                                hasUsageAccess = granted
+                                Toast.makeText(
+                                    context,
+                                    if (granted) "Usage Access granted!" else "Failed to grant Usage Access",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    )
+                }
             }
         }
     ) { padding ->
@@ -353,6 +429,7 @@ fun AppFreezerScreen(bottomInset: Dp = 0.dp, onBack: (() -> Unit)? = null) {
                                     if (launchIntent != null) {
                                         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         context.startActivity(launchIntent)
+                                        AppTrackerManager.startTracking(context.applicationContext, app.packageName)
                                     } else {
                                         Toast.makeText(context, "Cannot launch ${app.label}", Toast.LENGTH_SHORT).show()
                                     }
