@@ -148,8 +148,8 @@ object UpdateManager {
     fun getWhatsNewHighlights(version: String): List<WhatsNewItem> = listOf(
         WhatsNewItem(
             badge = "App Freezer",
-            title = "Shizuku App Freezing & One-Tap Widget",
-            description = "Suspend selected apps while keeping compatible launcher icons greyed in the app tray, unfreeze from Android's system action, or toggle the group from a Home Screen widget."
+            title = "True App Freezer with Sidecar Icons & Usage Tracking",
+            description = "Real package freezing (pm disable-user) via Shizuku with dynamic greyscale app drawer icons via Sidecar, intelligent foreground usage tracking, automatic re-freeze on exit or lock, Essentials-style 4-column grid, and 1-tap widget."
         ),
         WhatsNewItem(
             badge = "UI & Tabs",
