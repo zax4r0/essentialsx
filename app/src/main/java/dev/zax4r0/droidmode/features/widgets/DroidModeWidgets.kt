@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.Toast
@@ -395,7 +396,7 @@ object DroidModeWidgetsUpdater {
             val pending = broadcastPendingIntent(
                 context, AppFreezerWidgetProvider::class.java, ACTION_APP_FREEZER_TOGGLE, 601
             )
-            mgr.updateAppWidget(id, buildPillRemoteViews(context, R.drawable.ic_freezer, model, pending, pending))
+            mgr.updateAppWidget(id, buildPillRemoteViews(context, R.drawable.ic_freezer, model, pending, pending, R.layout.widget_app_freezer_pill))
         }
     }
 
@@ -404,9 +405,10 @@ object DroidModeWidgetsUpdater {
         iconRes: Int,
         model: WidgetCardModel,
         rootPendingIntent: PendingIntent,
-        badgePendingIntent: PendingIntent
+        badgePendingIntent: PendingIntent,
+        layoutRes: Int = R.layout.widget_pill_card
     ): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_pill_card)
+        val views = RemoteViews(context.packageName, layoutRes)
         views.setInt(
             R.id.widget_root,
             "setBackgroundResource",
@@ -461,7 +463,25 @@ object DroidModeWidgetsUpdater {
         val mgr = AppWidgetManager.getInstance(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mgr.isRequestPinAppWidgetSupported) {
             val provider = ComponentName(context, providerClass)
-            val pinned = mgr.requestPinAppWidget(provider, null, null)
+            val extras = Bundle().apply {
+                if (providerClass == AppFreezerWidgetProvider::class.java) {
+                    val selected = AppFreezerController.apps.value.filter { it.isSelected }
+                    val frozen = selected.count { it.isFrozen }
+                    val allFrozen = selected.isNotEmpty() && frozen == selected.size
+                    val model = WidgetCardModel(
+                        title = if (allFrozen) "Apps frozen" else "App Freezer",
+                        subtitle = if (selected.isEmpty()) "Choose apps in DroidMode" else "$frozen/${selected.size} frozen",
+                        badge = if (allFrozen) "Unfreeze" else "Freeze",
+                        isActive = allFrozen
+                    )
+                    val pending = broadcastPendingIntent(context, providerClass, ACTION_APP_FREEZER_TOGGLE, 601)
+                    val previewViews = buildPillRemoteViews(
+                        context, R.drawable.ic_freezer, model, pending, pending, R.layout.widget_app_freezer_pill
+                    )
+                    putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, previewViews)
+                }
+            }
+            val pinned = mgr.requestPinAppWidget(provider, extras, null)
             if (!pinned) {
                 Toast.makeText(
                     context,
