@@ -228,7 +228,7 @@ object DroidModeWidgetsUpdater {
             timeoutMinutes = CaffeineController.selectedTimeout.value
         )
         for (id in ids) {
-            val views = buildPillRemoteViews(
+            val views = buildResponsiveRemoteViews(
                 context = context,
                 iconRes = R.drawable.ic_coffee,
                 model = model,
@@ -247,7 +247,7 @@ object DroidModeWidgetsUpdater {
             status = SmartNetworkController.engineStatus.value
         )
         for (id in ids) {
-            val views = buildPillRemoteViews(
+            val views = buildResponsiveRemoteViews(
                 context = context,
                 iconRes = R.drawable.ic_smart_network,
                 model = model,
@@ -265,7 +265,7 @@ object DroidModeWidgetsUpdater {
         val defaultSim = NetworkModeController.getDefaultTargetSim()
         val model = buildNetworkSimWidgetModel(defaultSim, activeSims.size)
         for (id in ids) {
-            val views = buildPillRemoteViews(
+            val views = buildResponsiveRemoteViews(
                 context = context,
                 iconRes = R.drawable.ic_signal_cellular,
                 model = model,
@@ -285,7 +285,7 @@ object DroidModeWidgetsUpdater {
             inRangeCount = WifiPriorityController.inRange.value.size
         )
         for (id in ids) {
-            val views = buildPillRemoteViews(
+            val views = buildResponsiveRemoteViews(
                 context = context,
                 iconRes = R.drawable.ic_wifi,
                 model = model,
@@ -396,8 +396,52 @@ object DroidModeWidgetsUpdater {
             val pending = broadcastPendingIntent(
                 context, AppFreezerWidgetProvider::class.java, ACTION_APP_FREEZER_TOGGLE, 601
             )
-            mgr.updateAppWidget(id, buildPillRemoteViews(context, R.drawable.ic_freezer, model, pending, pending, R.layout.widget_app_freezer_pill))
+            mgr.updateAppWidget(id, buildResponsiveRemoteViews(context, R.drawable.ic_freezer, model, pending, pending, R.layout.widget_app_freezer_pill))
         }
+    }
+
+    private fun buildResponsiveRemoteViews(
+        context: Context,
+        iconRes: Int,
+        model: WidgetCardModel,
+        rootPendingIntent: PendingIntent,
+        badgePendingIntent: PendingIntent,
+        pillLayoutRes: Int = R.layout.widget_pill_card
+    ): RemoteViews {
+        val normal = buildPillRemoteViews(context, iconRes, model, rootPendingIntent, badgePendingIntent, pillLayoutRes)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val compact = buildCompactRemoteViews(context, iconRes, model, rootPendingIntent)
+            return RemoteViews(
+                mapOf(
+                    android.util.SizeF(40f, 40f) to compact,
+                    android.util.SizeF(110f, 40f) to normal
+                )
+            )
+        }
+        return normal
+    }
+
+    private fun buildCompactRemoteViews(
+        context: Context,
+        iconRes: Int,
+        model: WidgetCardModel,
+        rootPendingIntent: PendingIntent
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.widget_icon_card)
+        views.setInt(
+            R.id.widget_root,
+            "setBackgroundResource",
+            if (model.isActive) R.drawable.bg_widget_active else R.drawable.bg_widget_surface
+        )
+        views.setImageViewResource(R.id.widget_icon, iconRes)
+        if (model.badge.isNotBlank()) {
+            views.setViewVisibility(R.id.widget_badge, View.VISIBLE)
+            views.setTextViewText(R.id.widget_badge, model.badge)
+        } else {
+            views.setViewVisibility(R.id.widget_badge, View.GONE)
+        }
+        views.setOnClickPendingIntent(R.id.widget_root, rootPendingIntent)
+        return views
     }
 
     private fun buildPillRemoteViews(
@@ -475,7 +519,7 @@ object DroidModeWidgetsUpdater {
                         isActive = allFrozen
                     )
                     val pending = broadcastPendingIntent(context, providerClass, ACTION_APP_FREEZER_TOGGLE, 601)
-                    val previewViews = buildPillRemoteViews(
+                    val previewViews = buildResponsiveRemoteViews(
                         context, R.drawable.ic_freezer, model, pending, pending, R.layout.widget_app_freezer_pill
                     )
                     putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, previewViews)
