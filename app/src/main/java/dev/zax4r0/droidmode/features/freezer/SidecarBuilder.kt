@@ -36,6 +36,9 @@ object SidecarBuilder {
     fun getAliasName(packageName: String): String =
         ".Alias_${sanitizePackageName(packageName)}"
 
+    fun getAliasClassName(packageName: String): String =
+        "$SIDECAR_PACKAGE.Alias_${sanitizePackageName(packageName)}"
+
     fun getFullComponent(packageName: String): String =
         "$SIDECAR_PACKAGE/${getAliasName(packageName)}"
 
@@ -147,15 +150,8 @@ object SidecarBuilder {
                     return@withContext Result.failure(Exception("Shizuku install failed: $installMessage"))
                 }
 
-                // 6. Sync enabled states for each component
-                for (app in apps) {
-                    val comp = getFullComponent(app.packageName)
-                    if (app.isFrozen) {
-                        ShizukuHelper.runCommand("pm enable --user $userId $comp")
-                    } else {
-                        ShizukuHelper.runCommand("pm disable --user $userId $comp")
-                    }
-                }
+                // 6. Sync enabled states for each component via Sidecar IPC
+                syncAllStates(appContext, apps)
 
                 // Clean temporary APKs
                 templateFile.delete()
@@ -169,12 +165,85 @@ object SidecarBuilder {
             }
         }
 
-    fun syncAliasState(packageName: String, frozen: Boolean, userId: Int = android.os.Process.myUid() / 100_000) {
-        val comp = getFullComponent(packageName)
-        if (frozen) {
-            ShizukuHelper.runCommand("pm enable --user $userId $comp")
-        } else {
-            ShizukuHelper.runCommand("pm disable --user $userId $comp")
+    fun syncAliasState(context: Context, packageName: String, frozen: Boolean) {
+        val appContext = context.applicationContext
+        val aliasClass = getAliasClassName(packageName)
+        var synced = false
+
+        // 1. Synchronous ContentProvider IPC
+        try {
+            val extras = android.os.Bundle().apply {
+                putString("package", packageName)
+                putString("alias", aliasClass)
+                putBoolean("enabled", frozen)
+            }
+            val res = appContext.contentResolver.call(
+                android.net.Uri.parse("content://$SIDECAR_PACKAGE.provider"),
+                "set_state",
+                null,
+                extras
+            )
+            if (res?.getBoolean("success", false) == true) {
+                synced = true
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "ContentProvider sync failed: ${e.message}")
+        }
+
+        // 2. Explicit Broadcast
+        try {
+            val intent = android.content.Intent("$SIDECAR_PACKAGE.SET_STATE").apply {
+                setPackage(SIDECAR_PACKAGE)
+                component = android.content.ComponentName(SIDECAR_PACKAGE, "$SIDECAR_PACKAGE.SidecarReceiver")
+                putExtra("package", packageName)
+                putExtra("alias", aliasClass)
+                putExtra("enabled", frozen)
+                addFlags(android.content.Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+            }
+            appContext.sendBroadcast(intent)
+        } catch (e: Throwable) {
+            Log.w(TAG, "sendBroadcast sync failed: ${e.message}")
+        }
+
+        // 3. Fallback: Shell am broadcast via Shizuku
+        if (!synced && ShizukuHelper.hasPorterPermission()) {
+            val cmd = "am broadcast -a $SIDECAR_PACKAGE.SET_STATE " +
+                "-n $SIDECAR_PACKAGE/.SidecarReceiver " +
+                "--es package $packageName " +
+                "--es alias $aliasClass " +
+                "--ez enabled $frozen " +
+                "--include-stopped-packages"
+            ShizukuHelper.runCommand(cmd)
+        }
+    }
+
+    fun syncAllStates(context: Context, apps: List<FreezableApp>) {
+        val appContext = context.applicationContext
+        var synced = false
+        try {
+            val pkgs = apps.map { it.packageName }.toTypedArray()
+            val states = apps.map { it.isFrozen }.toBooleanArray()
+            val extras = android.os.Bundle().apply {
+                putStringArray("packages", pkgs)
+                putBooleanArray("states", states)
+            }
+            val res = appContext.contentResolver.call(
+                android.net.Uri.parse("content://$SIDECAR_PACKAGE.provider"),
+                "set_all_states",
+                null,
+                extras
+            )
+            if (res?.getBoolean("success", false) == true) {
+                synced = true
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "ContentProvider set_all_states failed: ${e.message}")
+        }
+
+        if (!synced) {
+            for (app in apps) {
+                syncAliasState(appContext, app.packageName, app.isFrozen)
+            }
         }
     }
 

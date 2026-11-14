@@ -15,8 +15,8 @@ android {
         applicationId = "dev.zax4r0.droidmode"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.2.0-beta.12"
+        versionCode = 18
+        versionName = "1.2.0-beta.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

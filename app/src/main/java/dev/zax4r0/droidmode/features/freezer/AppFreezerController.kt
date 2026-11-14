@@ -127,7 +127,7 @@ object AppFreezerController {
                         if (it.packageName == packageName) it.copy(isFrozen = frozen) else it
                     }
                     if (SidecarBuilder.isSidecarInstalled(context)) {
-                        SidecarBuilder.syncAliasState(packageName, frozen, userId)
+                        SidecarBuilder.syncAliasState(context, packageName, frozen)
                     }
                     DroidModeWidgetsUpdater.updateAll(context.applicationContext)
                 }
@@ -146,6 +146,9 @@ object AppFreezerController {
         selected.forEach { app ->
             val targetFrozen = action == BulkFreezeAction.FREEZE
             if (app.isFrozen != targetFrozen && setFrozen(context, app.packageName, targetFrozen)) changed++
+        }
+        if (SidecarBuilder.isSidecarInstalled(context)) {
+            SidecarBuilder.syncAllStates(context, _apps.value.filter { it.isSelected })
         }
         refresh(context)
         return action to changed

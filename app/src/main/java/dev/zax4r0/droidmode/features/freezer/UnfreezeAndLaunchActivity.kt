@@ -7,6 +7,7 @@ import android.widget.Toast
 import dev.zax4r0.droidmode.features.widgets.DroidModeWidgetsUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class UnfreezeAndLaunchActivity : Activity() {
@@ -21,7 +22,13 @@ class UnfreezeAndLaunchActivity : Activity() {
         CoroutineScope(Dispatchers.Main).launch {
             val unfreezeSuccess = AppFreezerController.setFrozen(this@UnfreezeAndLaunchActivity, targetPkg, false)
             if (unfreezeSuccess) {
-                val launchIntent = packageManager.getLaunchIntentForPackage(targetPkg)
+                var launchIntent = packageManager.getLaunchIntentForPackage(targetPkg)
+                var retries = 0
+                while (launchIntent == null && retries < 5) {
+                    delay(100)
+                    launchIntent = packageManager.getLaunchIntentForPackage(targetPkg)
+                    retries++
+                }
                 if (launchIntent != null) {
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(launchIntent)

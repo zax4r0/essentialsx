@@ -12,5 +12,18 @@
             android:enabled="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
+        <provider
+            android:name=".SidecarProvider"
+            android:authorities="dev.zax4r0.droidmode.sidecar.provider"
+            android:exported="true" />
+
+        <receiver
+            android:name=".SidecarReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.zax4r0.droidmode.sidecar.SET_STATE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

@@ -25,6 +25,11 @@
     <!-- Required for the user-facing installed-app picker. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
+    <queries>
+        <package android:name="dev.zax4r0.droidmode.sidecar" />
+        <provider android:authorities="dev.zax4r0.droidmode.sidecar.provider" />
+    </queries>
+
     <application
         android:name=".DroidModeApplication"
         android:allowBackup="true"

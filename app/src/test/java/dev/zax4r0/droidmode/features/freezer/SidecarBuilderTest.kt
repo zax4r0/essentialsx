@@ -83,4 +83,12 @@ class SidecarBuilderTest {
 
         assertTrue(signedFile.exists() && signedFile.length() > 0)
     }
+
+    @Test
+    fun testAliasNaming() {
+        val pkg = "com.whatsapp"
+        org.junit.Assert.assertEquals(".Alias_com_whatsapp", SidecarBuilder.getAliasName(pkg))
+        org.junit.Assert.assertEquals("dev.zax4r0.droidmode.sidecar.Alias_com_whatsapp", SidecarBuilder.getAliasClassName(pkg))
+        org.junit.Assert.assertEquals("dev.zax4r0.droidmode.sidecar/.Alias_com_whatsapp", SidecarBuilder.getFullComponent(pkg))
+    }
 }
