@@ -104,8 +104,7 @@ object AppFreezerController {
                     )
                 }.getOrNull()
             }.sortedWith(
-                compareByDescending<FreezableApp> { it.isSelected }
-                    .thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }
+                compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }
             )
         } finally {
             _isLoading.value = false
@@ -120,10 +119,7 @@ object AppFreezerController {
             .edit().putStringSet(KEY_SELECTED, updated).apply()
         _apps.value = _apps.value.map {
             if (it.packageName == packageName) it.copy(isSelected = selected) else it
-        }.sortedWith(
-            compareByDescending<FreezableApp> { it.isSelected }
-                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }
-        )
+        }
         DroidModeWidgetsUpdater.updateAll(context.applicationContext)
     }
 
