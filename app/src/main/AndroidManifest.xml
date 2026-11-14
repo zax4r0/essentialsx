@@ -22,6 +22,8 @@
     <!-- OTA update permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Required for the user-facing installed-app picker. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
     <application
         android:name=".DroidModeApplication"
@@ -235,6 +237,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_control_bar_info" />
+        </receiver>
+
+        <receiver
+            android:name=".features.widgets.AppFreezerWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_app_freezer_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="dev.zax4r0.droidmode.widget.ACTION_APP_FREEZER_TOGGLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_app_freezer_info" />
         </receiver>
 
         <!-- Shizuku Client Provider -->

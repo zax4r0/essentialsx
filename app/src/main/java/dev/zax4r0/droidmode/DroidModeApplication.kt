@@ -3,6 +3,7 @@ package dev.zax4r0.droidmode
 import android.app.Application
 import dev.zax4r0.droidmode.features.animator.AnimatorController
 import dev.zax4r0.droidmode.features.caffeine.CaffeineController
+import dev.zax4r0.droidmode.features.freezer.AppFreezerController
 import dev.zax4r0.droidmode.features.network.NetworkModeController
 import dev.zax4r0.droidmode.features.smartnet.SmartNetworkController
 import dev.zax4r0.droidmode.features.widgets.DroidModeWidgetsUpdater
@@ -23,6 +24,7 @@ class DroidModeApplication : Application() {
         super.onCreate()
         ShizukuHelper.init()
         CaffeineController.init(this)
+        AppFreezerController.init(this)
         AnimatorController.init(this)
         WifiPriorityController.init(this)
         SmartNetworkController.init(this)
@@ -35,6 +37,7 @@ class DroidModeApplication : Application() {
             ShizukuHelper.updateState()
             NetworkModeController.refresh(this@DroidModeApplication)
             WifiPriorityController.refresh(scan = false)
+            AppFreezerController.refresh(this@DroidModeApplication)
             DroidModeWidgetsUpdater.updateAll(this@DroidModeApplication)
         }
     }

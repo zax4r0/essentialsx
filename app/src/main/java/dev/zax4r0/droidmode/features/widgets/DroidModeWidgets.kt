@@ -12,6 +12,7 @@ import android.widget.RemoteViews
 import android.widget.Toast
 import dev.zax4r0.droidmode.R
 import dev.zax4r0.droidmode.features.caffeine.CaffeineController
+import dev.zax4r0.droidmode.features.freezer.AppFreezerController
 import dev.zax4r0.droidmode.features.network.NetworkModeController
 import dev.zax4r0.droidmode.features.network.NetworkModeDrawerActivity
 import dev.zax4r0.droidmode.features.smartnet.SmartNetworkController
@@ -39,6 +40,7 @@ object DroidModeWidgetsUpdater {
     const val ACTION_SIM_SWITCH = "dev.zax4r0.droidmode.widget.ACTION_SIM_SWITCH"
     const val ACTION_WIFI_PRIORITY_TOGGLE = "dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_TOGGLE"
     const val ACTION_WIFI_PRIORITY_SWITCH_NOW = "dev.zax4r0.droidmode.widget.ACTION_WIFI_PRIORITY_SWITCH_NOW"
+    const val ACTION_APP_FREEZER_TOGGLE = "dev.zax4r0.droidmode.widget.ACTION_APP_FREEZER_TOGGLE"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -191,6 +193,14 @@ object DroidModeWidgetsUpdater {
                     updateAll(appCtx)
                 }
             }
+            ACTION_APP_FREEZER_TOGGLE -> {
+                AppFreezerController.init(appCtx)
+                scope.launch {
+                    AppFreezerController.refresh(appCtx)
+                    AppFreezerController.performBulkAction(appCtx)
+                    updateAll(appCtx)
+                }
+            }
         }
     }
 
@@ -204,6 +214,7 @@ object DroidModeWidgetsUpdater {
             updateNetworkSimWidgets(appCtx, mgr)
             updateWifiPriorityWidgets(appCtx, mgr)
             updateBarWidgets(appCtx, mgr)
+            updateAppFreezerWidgets(appCtx, mgr)
         }
     }
 
@@ -368,6 +379,26 @@ object DroidModeWidgetsUpdater {
         }
     }
 
+    fun updateAppFreezerWidgets(context: Context, mgr: AppWidgetManager = AppWidgetManager.getInstance(context)) {
+        val ids = mgr.getAppWidgetIds(ComponentName(context, AppFreezerWidgetProvider::class.java))
+        if (ids.isEmpty()) return
+        val selected = AppFreezerController.apps.value.filter { it.isSelected }
+        val frozen = selected.count { it.isFrozen }
+        val allFrozen = selected.isNotEmpty() && frozen == selected.size
+        val model = WidgetCardModel(
+            title = if (allFrozen) "Apps frozen" else "App Freezer",
+            subtitle = if (selected.isEmpty()) "Choose apps in DroidMode" else "$frozen/${selected.size} frozen",
+            badge = if (allFrozen) "Unfreeze" else "Freeze",
+            isActive = allFrozen
+        )
+        for (id in ids) {
+            val pending = broadcastPendingIntent(
+                context, AppFreezerWidgetProvider::class.java, ACTION_APP_FREEZER_TOGGLE, 601
+            )
+            mgr.updateAppWidget(id, buildPillRemoteViews(context, R.drawable.ic_freezer, model, pending, pending))
+        }
+    }
+
     private fun buildPillRemoteViews(
         context: Context,
         iconRes: Int,
@@ -467,3 +498,4 @@ class SmartNetworkWidgetProvider : BaseDroidModeWidgetProvider()
 class NetworkSimWidgetProvider : BaseDroidModeWidgetProvider()
 class WifiPriorityWidgetProvider : BaseDroidModeWidgetProvider()
 class DroidModeBarWidgetProvider : BaseDroidModeWidgetProvider()
+class AppFreezerWidgetProvider : BaseDroidModeWidgetProvider()

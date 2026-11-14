@@ -31,6 +31,7 @@ import dev.zax4r0.droidmode.utils.UpdateManager
 fun MainScreen() {
     val context = LocalContext.current
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var showFreezer by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val showWhatsNew by UpdateManager.showWhatsNew.collectAsState()
 
     val tabs = remember {
@@ -54,10 +55,13 @@ fun MainScreen() {
     }
 
     Box(Modifier.fillMaxSize()) {
-        when (selectedTab) {
+        if (showFreezer) {
+            AppFreezerScreen(onBack = { showFreezer = false })
+        } else when (selectedTab) {
             0 -> HomeScreen(
                 bottomInset = FloatingTabBarClearance,
-                onNavigateToTab = { selectedTab = it }
+                onNavigateToTab = { selectedTab = it },
+                onOpenFreezer = { showFreezer = true }
             )
             1 -> SimManagerScreen(bottomInset = FloatingTabBarClearance)
             2 -> SmartNetworkScreen(bottomInset = FloatingTabBarClearance)
@@ -65,14 +69,16 @@ fun MainScreen() {
             else -> SettingsScreen(bottomInset = FloatingTabBarClearance)
         }
 
-        FloatingTabBar(
-            tabs = tabs,
-            selectedIndex = selectedTab,
-            onSelect = { selectedTab = it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 12.dp)
-        )
+        if (!showFreezer) {
+            FloatingTabBar(
+                tabs = tabs,
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 12.dp)
+            )
+        }
     }
 }

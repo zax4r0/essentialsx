@@ -147,6 +147,11 @@ object UpdateManager {
 
     fun getWhatsNewHighlights(version: String): List<WhatsNewItem> = listOf(
         WhatsNewItem(
+            badge = "App Freezer",
+            title = "Shizuku App Freezing & One-Tap Widget",
+            description = "Suspend selected apps while keeping compatible launcher icons greyed in the app tray, unfreeze from Android's system action, or toggle the group from a Home Screen widget."
+        ),
+        WhatsNewItem(
             badge = "UI & Tabs",
             title = "Full-Width 5-Tab Bar & Bento Quick Control Home",
             description = "Spacious full-width floating tab bar (Home, SIM, Smart, Wi-Fi, Settings ⚙️) + Bento Action Cards on Home for 1-tap control."

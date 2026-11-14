@@ -84,4 +84,6 @@
     <string name="widget_wifi_priority_desc">Toggle Wi-Fi Priority auto-switch or 1-tap switch to the #1 saved Wi-Fi in range</string>
     <string name="widget_control_bar_label">DroidMode 4×1 Control Bar</string>
     <string name="widget_control_bar_desc">All-in-one dock for Caffeine, Smart Network, 5G/SIM &amp; Wi-Fi Priority</string>
+    <string name="widget_app_freezer_label">App Freezer Widget</string>
+    <string name="widget_app_freezer_desc">One tap to freeze or unfreeze all apps selected in DroidMode</string>
 </resources>

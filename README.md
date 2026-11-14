@@ -52,7 +52,13 @@
 - **Built-in GitHub Releases updater**: Instantly checks for new versions with changelog and release notes.
 - **Direct in-app download and installation**: Downloads latest APKs and triggers system package installer via secure Android FileProvider.
 
-### 🧩 5. Safe Quick Settings Tile Placement
+### ❄️ 5. Shizuku App Freezer
+- **Launcher-preserving suspension**: Freezes selected apps through Shizuku without removing their launcher entries.
+- **Greyed app-tray icons**: Compatible launchers show suspended apps dimmed; Android's suspension dialog provides an Unsuspend action without opening DroidMode.
+- **Bulk and per-app controls**: Search installed apps, keep a persistent selection, and freeze or unfreeze individually or as a group.
+- **One-tap widget**: Freeze all selected apps from the Home Screen, then tap again to unfreeze the group.
+
+### 🧩 6. Safe Quick Settings Tile Placement
 - **Layout Preservation**: Never rearranges or disrupts your existing Quick Settings tiles. Appends new tiles strictly to the very end of `sysui_qs_tiles`.
 - **Variant Selection Dialogs**: When adding a tile, select between specialized variants (e.g. Network Drawer vs Data SIM Switcher; Infinite Toggle vs Cycle).
 
@@ -75,6 +81,7 @@ DroidMode is designed with a tiered permission architecture:
 | **Caffeine** | None (`WAKE_LOCK`, `POST_NOTIFICATIONS`) | Ready out of the box |
 | **Animation Scales** | `WRITE_SECURE_SETTINGS` | Shizuku / Porter **OR** ADB command: <br/>`adb shell pm grant dev.zax4r0.droidmode android.permission.WRITE_SECURE_SETTINGS` |
 | **Network Switch & Drawer** | Privileged Shell (`cmd phone`) | Shizuku **OR** Porter daemon |
+| **App Freezer** | Privileged package suspension | Shizuku / Porter |
 | **OTA Updates** | `REQUEST_INSTALL_PACKAGES` | Standard Android system prompt |
 
 ### Porter Integration

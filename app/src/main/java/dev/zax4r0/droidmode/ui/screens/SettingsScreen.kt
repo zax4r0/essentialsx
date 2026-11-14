@@ -26,6 +26,7 @@ import dev.zax4r0.droidmode.features.network.NetworkModeTileService
 import dev.zax4r0.droidmode.features.smartnet.SmartNetworkController
 import dev.zax4r0.droidmode.features.smartnet.SmartNetworkTileService
 import dev.zax4r0.droidmode.features.widgets.CaffeineWidgetProvider
+import dev.zax4r0.droidmode.features.widgets.AppFreezerWidgetProvider
 import dev.zax4r0.droidmode.features.widgets.DroidModeBarWidgetProvider
 import dev.zax4r0.droidmode.features.widgets.DroidModeWidgetsUpdater
 import dev.zax4r0.droidmode.features.widgets.NetworkSimWidgetProvider
@@ -569,6 +570,33 @@ fun SettingsScreen(bottomInset: Dp = 0.dp) {
                             context,
                             CaffeineWidgetProvider::class.java,
                             "Caffeine Widget"
+                        )
+                    }
+                )
+            }
+
+            item(key = "widget_app_freezer") {
+                SettingsItem(
+                    title = "App Freezer Widget (2×1)",
+                    icon = Icons.TwoTone.AcUnit,
+                    summary = "One tap freezes all selected apps; tap again when all are frozen to unfreeze them",
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                DroidModeWidgetsUpdater.requestPinWidget(
+                                    context,
+                                    AppFreezerWidgetProvider::class.java,
+                                    "App Freezer Widget"
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) { Text("Pin") }
+                    },
+                    onClick = {
+                        DroidModeWidgetsUpdater.requestPinWidget(
+                            context,
+                            AppFreezerWidgetProvider::class.java,
+                            "App Freezer Widget"
                         )
                     }
                 )

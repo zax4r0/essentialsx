@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.zax4r0.droidmode.R
 import dev.zax4r0.droidmode.features.animator.AnimatorController
 import dev.zax4r0.droidmode.features.caffeine.CaffeineController
+import dev.zax4r0.droidmode.features.freezer.AppFreezerController
 import dev.zax4r0.droidmode.features.network.NetworkModeController
 import dev.zax4r0.droidmode.features.smartnet.SmartNetworkController
 import dev.zax4r0.droidmode.features.wifi.WifiPriorityController
@@ -35,7 +36,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     bottomInset: Dp = 0.dp,
-    onNavigateToTab: (Int) -> Unit = {}
+    onNavigateToTab: (Int) -> Unit = {},
+    onOpenFreezer: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -66,6 +68,11 @@ fun HomeScreen(
     val caffeineRemaining by CaffeineController.remainingSecondsFlow.collectAsState()
     val caffeineTimeout by CaffeineController.selectedTimeout.collectAsState()
     val caffeineAbortScreenOff by CaffeineController.abortOnScreenOff.collectAsState()
+
+    // App freezer states
+    val freezableApps by AppFreezerController.apps.collectAsState()
+    val selectedFreezerApps = freezableApps.filter { it.isSelected }
+    val frozenAppCount = selectedFreezerApps.count { it.isFrozen }
 
     // Animator states
     val windowScale by AnimatorController.windowScale.collectAsState()
@@ -440,7 +447,44 @@ fun HomeScreen(
                 }
             }
 
-            // ================= 4. CAFFEINE KEEP-AWAKE BENTO CARD =================
+            // ================= 4. APP FREEZER BENTO CARD =================
+            item(key = "bento_app_freezer") {
+                BentoCardContainer(
+                    isActive = frozenAppCount > 0,
+                    onClickHeader = onOpenFreezer
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        BentoIconBox(Icons.TwoTone.AcUnit, frozenAppCount > 0)
+                        Column(Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("App Freezer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Icon(
+                                    Icons.TwoTone.ChevronRight,
+                                    contentDescription = "Open App Freezer",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                if (selectedFreezerApps.isEmpty()) "Choose apps to freeze with Shizuku"
+                                else "$frozenAppCount/${selectedFreezerApps.size} selected apps frozen",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (frozenAppCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        FilledTonalButton(onClick = onOpenFreezer) { Text("Open") }
+                    }
+                }
+            }
+
+            // ================= 5. CAFFEINE KEEP-AWAKE BENTO CARD =================
             item(key = "bento_caffeine") {
                 BentoCardContainer(
                     isActive = isCaffeineActive,
